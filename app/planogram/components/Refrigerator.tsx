@@ -1,15 +1,14 @@
-// app/planogram/_components/Refrigerator.tsx
 'use client';
 import { usePlanogramStore } from '@/lib/store';
 import { RowComponent } from './row';
-import { DropIndicator } from './planogramEditor';
+import { DropIndicator, DragValidation } from './planogramEditor';
 
-// The props for this component now need to be defined
 interface RefrigeratorComponentProps {
   dropIndicator: DropIndicator;
+  dragValidation: DragValidation; // New prop
 }
 
-export function RefrigeratorComponent({ dropIndicator }: RefrigeratorComponentProps) {
+export function RefrigeratorComponent({ dropIndicator, dragValidation }: RefrigeratorComponentProps) {
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
   const sortedRowIds = Object.keys(refrigerator).sort();
 
@@ -26,8 +25,12 @@ export function RefrigeratorComponent({ dropIndicator }: RefrigeratorComponentPr
       </div>
       <div className="space-y-4 p-2 sm:p-4">
         {sortedRowIds.map(rowId => (
-          // The dropIndicator is now passed down to each row
-          <RowComponent key={rowId} row={refrigerator[rowId]} dropIndicator={dropIndicator} />
+          <RowComponent 
+            key={rowId} 
+            row={refrigerator[rowId]} 
+            dropIndicator={dropIndicator} 
+            dragValidation={dragValidation} // Pass it down
+          />
         ))}
       </div>
     </div>

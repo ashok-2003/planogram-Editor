@@ -8,6 +8,7 @@ import { RefrigeratorComponent } from './Refrigerator';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
+import { StatePreview } from './statePreview'; // Import the new component
 
 export type DropIndicator = {
   targetId: string;
@@ -16,16 +17,20 @@ export type DropIndicator = {
   index?: number;
 } | null;
 
-// This interface was missing. We define it here.
+export type DragValidation = {
+  validRowIds: Set<string>;
+} | null;
+
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
 }
 
 export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorProps) {
-  const { actions, findStackLocation } = usePlanogramStore();
+  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
+  const [dragValidation, setDragValidation] = useState<DragValidation>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -38,8 +43,29 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     const { active } = event;
     const activeData = active.data.current;
     
-    if (activeData?.type === 'sku') setActiveItem(activeData.sku);
-    else if (activeData?.type === 'stack') setActiveItem(activeData.items[0]);
+    let draggedItem: Item | Sku | null = null;
+    if (activeData?.type === 'sku') {
+      draggedItem = activeData.sku;
+      setActiveItem(draggedItem);
+    } else if (activeData?.type === 'stack') {
+      draggedItem = activeData.items[0];
+      setActiveItem(draggedItem);
+    }
+
+    if (draggedItem) {
+      const validRowIds = new Set<string>();
+      for (const rowId in refrigerator) {
+        const row = refrigerator[rowId];
+        const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
+        const itemOriginLocation = activeData?.type === 'stack' ? findStackLocation(draggedItem.id) : null;
+        const widthWithoutActiveItem = itemOriginLocation?.rowId === rowId ? currentWidth - draggedItem.width : currentWidth;
+        
+        if (widthWithoutActiveItem + draggedItem.width <= row.capacity) {
+          validRowIds.add(rowId);
+        }
+      }
+      setDragValidation({ validRowIds });
+    }
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -86,8 +112,13 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     const { active, over } = event;
     setActiveItem(null);
     setDropIndicator(null);
+    setDragValidation(null);
 
     if (!over || !dropIndicator) return;
+    
+    if (dragValidation && dropIndicator.targetRowId && !dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+        return; 
+    }
     
     const activeId = active.id as string;
     const activeType = active.data.current?.type;
@@ -118,9 +149,13 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
         <div className="flex flex-col md:flex-row gap-8">
           <SkuPalette skus={initialSkus} />
-          <RefrigeratorComponent dropIndicator={dropIndicator} />
+          <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
         </div>
-        <InfoPanel />
+        {/* We wrap the right column in a div to add the state preview */}
+        <div>
+          <InfoPanel />
+          <StatePreview />
+        </div>
       </div>
       <DragOverlay>
         {activeItem ? <ItemComponent item={activeItem as Item} /> : null}

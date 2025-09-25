@@ -4,22 +4,37 @@ import { StackComponent } from './stack';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DropIndicator } from './planogramEditor';
+import { DropIndicator, DragValidation } from './planogramEditor';
+import clsx from 'clsx';
 
 interface RowProps {
   row: RowType;
   dropIndicator: DropIndicator;
+  dragValidation: DragValidation; // New prop
 }
 
-export function RowComponent({ row, dropIndicator }: RowProps) {
+export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
   const { setNodeRef } = useDroppable({ id: row.id, data: { type: 'row', items: row.stacks } });
   
   const stackIds = row.stacks.map(stack => stack[0].id);
-
   const showGhost = dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id;
 
+  // Determine row's visual state during a drag
+  const isDragging = !!dragValidation;
+  const isValidDropTarget = isDragging && dragValidation.validRowIds.has(row.id);
+  const isInvalidDropTarget = isDragging && !isValidDropTarget;
+
   return (
-    <div ref={setNodeRef} className="bg-gray-700/50 p-2 rounded-lg border-2 border-gray-600 min-h-[150px]">
+    <div 
+      ref={setNodeRef} 
+      className={clsx(
+        "bg-gray-700/50 p-2 rounded-lg border-2 border-gray-600 min-h-[150px] transition-all duration-300",
+        {
+          "border-green-500 shadow-lg shadow-green-500/20": isValidDropTarget,
+          "opacity-40 bg-gray-800/60 pointer-events-none": isInvalidDropTarget,
+        }
+      )}
+    >
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
         <div className="flex items-end gap-1 h-full">
           {row.stacks.map((stack, index) => (
