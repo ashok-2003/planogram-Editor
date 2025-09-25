@@ -7,7 +7,7 @@ import { Item } from '@/lib/types';
 import { ItemComponent } from './item';
 
 interface StackProps {
-  id: string; // The ID for the sortable context (e.g., the ID of the first item in the stack)
+  id: string; 
   items: Item[];
 }
 
@@ -19,7 +19,14 @@ export function StackComponent({ id, items }: StackProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ 
+    id,
+    // Add metadata to identify this as a stack
+    data: {
+      type: 'stack',
+      items: items
+    }
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -36,6 +43,7 @@ export function StackComponent({ id, items }: StackProps) {
       {...listeners}
       className="flex flex-col-reverse"
     >
+      {/* Ensure each item is individually draggable but shares the stack's drag handle for sorting */}
       {items.map(item => <ItemComponent key={item.id} item={item} />)}
     </div>
   );
