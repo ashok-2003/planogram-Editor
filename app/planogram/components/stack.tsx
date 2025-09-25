@@ -1,38 +1,30 @@
-// app/planogram/_components/Stack.tsx
 'use client';
-
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Item } from '@/lib/types';
 import { ItemComponent } from './item';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import clsx from 'clsx';
 
 interface StackProps {
-  id: string; 
-  items: Item[];
+  stack: Item[];
+  isStackTarget: boolean;
 }
 
-export function StackComponent({ id, items }: StackProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ 
-    id,
-    // Add metadata to identify this as a stack
+export function StackComponent({ stack, isStackTarget }: StackProps) {
+  const firstItem = stack[0];
+  if (!firstItem) return null;
+
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: firstItem.id,
     data: {
       type: 'stack',
-      items: items
-    }
+      items: stack,
+    },
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : 'auto',
   };
 
   return (
@@ -41,10 +33,14 @@ export function StackComponent({ id, items }: StackProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className="flex flex-col-reverse"
+      className={clsx(
+        'relative flex flex-col-reverse items-center transition-all duration-200',
+        { 'ring-4 ring-offset-2 ring-offset-gray-800 ring-green-500 rounded-lg p-1': isStackTarget }
+      )}
     >
-      {/* Ensure each item is individually draggable but shares the stack's drag handle for sorting */}
-      {items.map(item => <ItemComponent key={item.id} item={item} />)}
+      {stack.map((item) => (
+        <ItemComponent key={item.id} item={item} />
+      ))}
     </div>
   );
 }

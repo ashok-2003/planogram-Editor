@@ -44,7 +44,7 @@ export const availableSkus: Sku[] = [
     skuId: 'sku-lays-chips',
     name: 'Lays Chips',
     width: 120,
-    height: 16,
+    height: 10,
     imageUrl: 'https://placehold.co/120x160/FEF9C3/854D0E?text=Lays',
     constraints: { stackable: true, deletable: true, movableRows: ['row-1', 'row-2', 'row-3'] },
   },

@@ -1,4 +1,3 @@
-// app/planogram/_components/PlanogramEditor.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,9 +6,17 @@ import { Sku, Refrigerator, Item } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
 import { InfoPanel } from './InfoPanel';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
 
+export type DropIndicator = {
+  targetId: string;
+  type: 'reorder' | 'stack' | 'row';
+  targetRowId?: string;
+  index?: number;
+} | null;
+
+// This interface was missing. We define it here.
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
@@ -18,122 +25,104 @@ interface PlanogramEditorProps {
 export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorProps) {
   const { actions, findStackLocation } = usePlanogramStore();
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
     usePlanogramStore.setState({ refrigerator: initialLayout });
   }, [initialLayout]);
 
   function handleDragStart(event: DragStartEvent) {
-      const { active } = event;
-      actions.selectItem(null); // Deselect any item when a drag starts
-      const activeData = active.data.current;
-      
-      if (activeData?.type === 'sku') {
-          setActiveItem(activeData.sku);
-      } else if (activeData?.type === 'stack') {
-          // When dragging a stack, show its first item in the overlay
-          setActiveItem(activeData.items[0]);
+    actions.selectItem(null);
+    const { active } = event;
+    const activeData = active.data.current;
+    
+    if (activeData?.type === 'sku') setActiveItem(activeData.sku);
+    else if (activeData?.type === 'stack') setActiveItem(activeData.items[0]);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) { setDropIndicator(null); return; }
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
+    
+    const isStackingAttempt = activeType === 'stack' && overType === 'stack' && activeId !== overId;
+    if (isStackingAttempt) {
+      const draggedStack = active.data.current?.items;
+      const isSingleItemStack = draggedStack?.length === 1 && draggedStack[0].constraints.stackable;
+      if (isSingleItemStack) {
+        setDropIndicator({ type: 'stack', targetId: overId });
+        return;
       }
+    }
+
+    let overRowId: string | undefined;
+    let stackIndex: number | undefined;
+    
+    if (overType === 'row') {
+      overRowId = overId;
+      stackIndex = over.data.current?.items?.length || 0;
+    } else if (overType === 'stack') {
+      const location = findStackLocation(overId);
+      if (location) {
+        overRowId = location.rowId;
+        stackIndex = location.stackIndex;
+      }
+    }
+    
+    if (overRowId && stackIndex !== undefined) {
+      setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
+    } else {
+      setDropIndicator(null);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveItem(null);
+    setDropIndicator(null);
 
-    if (!over || active.id === over.id) {
-        return;
-    }
-    
-    const activeType = active.data.current?.type;
-    const overType = over.data.current?.type;
+    if (!over || !dropIndicator) return;
     
     const activeId = active.id as string;
-    const overId = over.id as string;
+    const activeType = active.data.current?.type;
 
-    // --- Scenario 1: Add a new SKU from the palette ---
-    if (activeType === 'sku') {
-        const overIsRow = overType === 'row';
-        const overIsStack = overType === 'stack';
-        let targetRowId: string | null = null;
-        
-        if (overIsRow) {
-            targetRowId = overId;
-        } else if (overIsStack) {
-            const location = findStackLocation(overId);
-            targetRowId = location?.rowId ?? null;
-        }
-
-        if (targetRowId) {
-            actions.addItemFromSku(active.data.current.sku, targetRowId);
-        }
-        return;
+    if (dropIndicator.type === 'stack') {
+      actions.stackItem(activeId, dropIndicator.targetId);
+      return;
     }
-
-    // --- Scenario 2: Handle dragging an existing stack ---
-    if (activeType === 'stack') {
-        const activeLocation = findStackLocation(activeId);
-        const overIsRow = overType === 'row';
-        const overIsStack = overType === 'stack';
-
-        if (!activeLocation) return;
+    
+    if (dropIndicator.type === 'reorder' && dropIndicator.targetRowId) {
+      if (activeType === 'sku') {
+        actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
+      } else if (activeType === 'stack') {
+        const startLocation = findStackLocation(activeId);
+        if (!startLocation) return;
         
-        // --- Sub-case A: Reordering stacks within the same row ---
-        if (overIsStack) {
-            const overLocation = findStackLocation(overId);
-            if (overLocation && activeLocation.rowId === overLocation.rowId) {
-                if (activeLocation.stackIndex !== overLocation.stackIndex) {
-                    actions.reorderStack(activeLocation.rowId, activeLocation.stackIndex, overLocation.stackIndex);
-                }
-                return;
-            }
+        if (startLocation.rowId === dropIndicator.targetRowId) {
+          actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
+        } else {
+          actions.moveItem(activeId, dropIndicator.targetRowId, dropIndicator.index);
         }
-        
-        // --- Sub-case B: Moving a stack to a different row ---
-        let targetRowId: string | null = null;
-        let newIndex: number | undefined = undefined;
-
-        if (overIsRow) {
-            targetRowId = overId;
-        } else if (overIsStack) {
-            const overLocation = findStackLocation(overId);
-            if (overLocation && activeLocation.rowId !== overLocation.rowId) {
-                targetRowId = overLocation.rowId;
-                newIndex = overLocation.stackIndex;
-            }
-        }
-        
-        if (targetRowId) {
-            const itemToMove = active.data.current?.items[0] as Item;
-            const canMove = itemToMove.constraints.movableRows === 'all' || itemToMove.constraints.movableRows.includes(targetRowId);
-
-            if (canMove) {
-                actions.moveItem(activeId, targetRowId, newIndex);
-            } else {
-                console.log(`ACTION BLOCKED: This item cannot be moved to row ${targetRowId}`);
-            }
-        }
+      }
     }
   }
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} collisionDetection={closestCenter} sensors={sensors}>
+    <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
         <div className="flex flex-col md:flex-row gap-8">
           <SkuPalette skus={initialSkus} />
-          <RefrigeratorComponent />
+          <RefrigeratorComponent dropIndicator={dropIndicator} />
         </div>
         <InfoPanel />
       </div>
       <DragOverlay>
-        {/* For the overlay, we need to render an ItemComponent, so we cast */}
         {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
       </DragOverlay>
     </DndContext>

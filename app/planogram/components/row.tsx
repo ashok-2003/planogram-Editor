@@ -1,50 +1,56 @@
-    // app/planogram/_components/Row.tsx
-    'use client';
-    import { Row } from '@/lib/types';
-    import { useDroppable } from '@dnd-kit/core';
-    import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-    import { StackComponent } from './stack';
-    import clsx from 'clsx';
-    import { useMemo } from 'react';
+'use client';
+import { Row as RowType } from '@/lib/types';
+import { StackComponent } from './stack';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DropIndicator } from './planogramEditor';
 
-    interface RowProps {
-      row: Row;
-    }
+interface RowProps {
+  row: RowType;
+  dropIndicator: DropIndicator;
+}
 
-    export function RowComponent({ row }: RowProps) {
-      const { setNodeRef, isOver } = useDroppable({
-        id: row.id,
-        data: { type: 'row' },
-      });
+export function RowComponent({ row, dropIndicator }: RowProps) {
+  const { setNodeRef } = useDroppable({ id: row.id, data: { type: 'row', items: row.stacks } });
+  
+  const stackIds = row.stacks.map(stack => stack[0].id);
 
-      const currentWidth = row.stacks.reduce((acc, stack) => acc + (stack[0]?.width || 0), 0);
-      const widthPercentage = (currentWidth / row.capacity) * 100;
+  const showGhost = dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id;
 
-      // useMemo ensures this array is stable unless the stacks change.
-      const stackIds = useMemo(() => row.stacks.map(stack => stack[0]?.id).filter(Boolean), [row.stacks]);
-
-      return (
-        <div
-          ref={setNodeRef}
-          className={clsx(
-            "bg-black/20 p-2 rounded-md border-2 border-gray-600 min-h-[120px] transition-colors",
-            { 'bg-green-900/50 border-green-500': isOver }
-          )}
-        >
-          <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-            <div className="flex items-end h-full space-x-1">
-              {row.stacks.map((stack, stackIndex) => {
-                  if (stack.length === 0 || !stack[0]) return null;
-                  return <StackComponent key={stack[0].id} id={stack[0].id} items={stack} />;
-              })}
-            </div>
-          </SortableContext>
-          <div className="w-full bg-gray-600 rounded-full h-1.5 mt-2">
-            <div
-              className="bg-green-500 h-1.5 rounded-full"
-              style={{ width: `${widthPercentage}%` }}
-            ></div>
-          </div>
+  return (
+    <div ref={setNodeRef} className="bg-gray-700/50 p-2 rounded-lg border-2 border-gray-600 min-h-[150px]">
+      <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
+        <div className="flex items-end gap-1 h-full">
+          {row.stacks.map((stack, index) => (
+            <>
+              <AnimatePresence>
+                {showGhost && dropIndicator.index === index && (
+                  <motion.div
+                    layout
+                    initial={{ scaleY: 0, opacity: 0 }}
+                    animate={{ scaleY: 1, opacity: 1 }}
+                    exit={{ scaleY: 0, opacity: 0 }}
+                    className="w-1 self-stretch bg-blue-500 rounded-full"
+                  />
+                )}
+              </AnimatePresence>
+              <StackComponent key={stack[0].id} stack={stack} isStackTarget={dropIndicator?.type === 'stack' && dropIndicator.targetId === stack[0].id} />
+            </>
+          ))}
+          <AnimatePresence>
+              {showGhost && dropIndicator.index === row.stacks.length && (
+                <motion.div
+                  layout
+                  initial={{ scaleY: 0, opacity: 0 }}
+                  animate={{ scaleY: 1, opacity: 1 }}
+                  exit={{ scaleY: 0, opacity: 0 }}
+                  className="w-1 self-stretch bg-blue-500 rounded-full"
+                />
+              )}
+          </AnimatePresence>
         </div>
-      );
-    }
+      </SortableContext>
+    </div>
+  );
+}

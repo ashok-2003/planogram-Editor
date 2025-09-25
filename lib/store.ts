@@ -15,6 +15,7 @@ interface PlanogramState {
     moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number) => void;
     addItemFromSku: (sku: Sku, targetRowId: string) => void;
     reorderStack: (rowId: string, oldIndex: number, newIndex: number) => void;
+    stackItem: (draggedStackId: string, targetStackId: string) => void;
   }
 }
 
@@ -106,26 +107,24 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
              if (!location) return state;
 
              const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-             const stack = newFridge[location.rowId].stacks[location.stackIndex];
-             const itemIndex = stack.findIndex((i: Item) => i.id === itemId);
-             const [item] = stack.splice(itemIndex, 1);
+             const draggedStack = newFridge[location.rowId].stacks[location.stackIndex];
              
-             if (stack.length === 0) {
-                 newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
-             }
+             newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
+             
 
              const targetRow = newFridge[targetRowId];
              const currentWidth = targetRow.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+             const draggedStackWidth = draggedStack[0]?.width || 0;
 
-             if (currentWidth + item.width <= targetRow.capacity) {
+             if (currentWidth + draggedStackWidth <= targetRow.capacity) {
                  if (targetStackIndex !== undefined) {
-                     targetRow.stacks.splice(targetStackIndex, 0, [item]);
+                     targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
                  } else {
-                     targetRow.stacks.push([item]);
+                     targetRow.stacks.push(draggedStack);
                  }
              } else {
                  console.warn(`Row ${targetRowId} is full. Move reverted.`);
-                 return state; // Revert by returning original state
+                 newFridge[location.rowId].stacks.splice(location.stackIndex, 0, draggedStack);
              }
 
              return { refrigerator: newFridge };
@@ -135,6 +134,44 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         set(state => {
             const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
             newFridge[rowId].stacks = arrayMove(newFridge[rowId].stacks, oldIndex, newIndex);
+            return { refrigerator: newFridge };
+        });
+    },
+    stackItem: (draggedStackId, targetStackId) => {
+        set(state => {
+            const { findStackLocation } = get();
+            const draggedLocation = findStackLocation(draggedStackId);
+            const targetLocation = findStackLocation(targetStackId);
+
+            if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
+                return state;
+            }
+
+            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
+            const row = newFridge[draggedLocation.rowId];
+            const draggedStack = row.stacks[draggedLocation.stackIndex];
+            const targetStack = row.stacks[targetLocation.stackIndex];
+
+            if (!draggedStack || draggedStack.length !== 1) {
+                console.warn("Can only stack single items.");
+                return state;
+            }
+
+            const itemToStack = draggedStack[0];
+            if (!itemToStack.constraints.stackable) {
+                console.warn("Item is not stackable.");
+                return state;
+            }
+
+            const currentTargetHeight = targetStack.reduce((acc: number, item: Item) => acc + item.height, 0);
+            if (currentTargetHeight + itemToStack.height > row.maxHeight) {
+                console.warn("Stacking exceeds max row height.");
+                return state;
+            }
+            
+            targetStack.push(itemToStack);
+            row.stacks.splice(draggedLocation.stackIndex, 1);
+
             return { refrigerator: newFridge };
         });
     }
