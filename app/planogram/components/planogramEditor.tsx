@@ -8,7 +8,7 @@ import { RefrigeratorComponent } from './Refrigerator';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
-import { StatePreview } from './statePreview'; // Import the new component
+import { StatePreview } from './statePreview';
 
 export type DropIndicator = {
   targetId: string;
@@ -17,9 +17,13 @@ export type DropIndicator = {
   index?: number;
 } | null;
 
+// --- FIX START ---
+// The DragValidation type now includes validStackTargetIds
 export type DragValidation = {
   validRowIds: Set<string>;
+  validStackTargetIds: Set<string>;
 } | null;
+// --- FIX END ---
 
 interface PlanogramEditorProps {
   initialSkus: Sku[];
@@ -44,30 +48,54 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     const activeData = active.data.current;
     
     let draggedItem: Item | Sku | null = null;
+    let isDraggedItemStackable = false;
+
     if (activeData?.type === 'sku') {
       draggedItem = activeData.sku;
+      isDraggedItemStackable = draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
-    } else if (activeData?.type === 'stack') {
+    } else if (activeData?.type === 'stack' && activeData.items.length > 0) {
       draggedItem = activeData.items[0];
+      isDraggedItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
     }
 
     if (draggedItem) {
       const validRowIds = new Set<string>();
+      // --- FIX START ---
+      // We now calculate and store the valid stack targets here
+      const validStackTargetIds = new Set<string>();
+      const draggedItemWidth = draggedItem.width;
+      const draggedItemHeight = draggedItem.height;
+      const originLocation = activeData?.type === 'stack' ? findStackLocation(active.id as string) : null;
+
       for (const rowId in refrigerator) {
         const row = refrigerator[rowId];
         const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
-        const itemOriginLocation = activeData?.type === 'stack' ? findStackLocation(draggedItem.id) : null;
-        const widthWithoutActiveItem = itemOriginLocation?.rowId === rowId ? currentWidth - draggedItem.width : currentWidth;
         
-        if (widthWithoutActiveItem + draggedItem.width <= row.capacity) {
+        const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
+        if (widthWithoutActiveItem + draggedItemWidth <= row.capacity) {
           validRowIds.add(rowId);
         }
+
+        if (isDraggedItemStackable) {
+          for (const stack of row.stacks) {
+            const stackId = stack[0].id;
+            if (stackId === active.id) continue;
+
+            const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+            if (stackHeight + draggedItemHeight <= row.maxHeight) {
+              validStackTargetIds.add(stackId);
+            }
+          }
+        }
       }
-      setDragValidation({ validRowIds });
+      // Update the state with both sets of IDs
+      setDragValidation({ validRowIds, validStackTargetIds });
+      // --- FIX END ---
     }
   }
-
+  
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over) { setDropIndicator(null); return; }
@@ -151,7 +179,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
           <SkuPalette skus={initialSkus} />
           <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
         </div>
-        {/* We wrap the right column in a div to add the state preview */}
         <div>
           <InfoPanel />
           <StatePreview />

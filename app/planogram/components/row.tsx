@@ -10,7 +10,7 @@ import clsx from 'clsx';
 interface RowProps {
   row: RowType;
   dropIndicator: DropIndicator;
-  dragValidation: DragValidation; // New prop
+  dragValidation: DragValidation;
 }
 
 export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
@@ -19,19 +19,20 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
   const stackIds = row.stacks.map(stack => stack[0].id);
   const showGhost = dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id;
 
-  // Determine row's visual state during a drag
   const isDragging = !!dragValidation;
-  const isValidDropTarget = isDragging && dragValidation.validRowIds.has(row.id);
-  const isInvalidDropTarget = isDragging && !isValidDropTarget;
+  const isValidRowTarget = isDragging && dragValidation.validRowIds.has(row.id);
+  // A row might be invalid overall, but still contain valid stack targets.
+  const hasValidStackTargets = isDragging && row.stacks.some(stack => dragValidation.validStackTargetIds.has(stack[0].id));
+  const isVisuallyDisabled = isDragging && !isValidRowTarget && !hasValidStackTargets;
 
   return (
     <div 
       ref={setNodeRef} 
       className={clsx(
-        "bg-gray-700/50 p-2 rounded-lg border-2 border-gray-600 min-h-[150px] transition-all duration-300",
+        "bg-gray-700/50 p-2 rounded-lg border-2 border-transparent min-h-[150px] transition-all duration-300",
         {
-          "border-green-500 shadow-lg shadow-green-500/20": isValidDropTarget,
-          "opacity-40 bg-gray-800/60 pointer-events-none": isInvalidDropTarget,
+          "border-green-500 shadow-lg shadow-green-500/20": isValidRowTarget,
+          "opacity-40 bg-gray-800/60": isVisuallyDisabled,
         }
       )}
     >
@@ -50,7 +51,12 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
                   />
                 )}
               </AnimatePresence>
-              <StackComponent key={stack[0].id} stack={stack} isStackTarget={dropIndicator?.type === 'stack' && dropIndicator.targetId === stack[0].id} />
+              <StackComponent 
+                key={stack[0].id} 
+                stack={stack}
+                isStackHighlight={dropIndicator?.type === 'stack' && dropIndicator.targetId === stack[0].id}
+                dragValidation={dragValidation}
+              />
             </>
           ))}
           <AnimatePresence>
