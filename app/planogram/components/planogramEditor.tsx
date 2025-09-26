@@ -9,6 +9,55 @@ import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
 import { StatePreview } from './statePreview';
+import clsx from 'clsx';
+import { AnimatePresence, motion } from 'framer-motion';
+
+// --- UI Component for Mode Switching ---
+interface ModeToggleProps {
+  mode: 'reorder' | 'stack';
+  setMode: (mode: 'reorder' | 'stack') => void;
+}
+
+function ModeToggle({ mode, setMode }: ModeToggleProps) {
+  return (
+    <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 max-w-xs">
+      <button
+        onClick={() => setMode('reorder')}
+        className={clsx(
+          "px-4 py-2 text-sm font-semibold rounded-md transition-colors w-full text-center",
+          { 'bg-white text-blue-600 shadow': mode === 'reorder' },
+          { 'text-gray-600 hover:bg-gray-300': mode !== 'reorder' }
+        )}
+      >
+        Re-Order Mode
+      </button>
+      <button
+        onClick={() => setMode('stack')}
+        className={clsx(
+          "px-4 py-2 text-sm font-semibold rounded-md transition-colors w-full text-center",
+          { 'bg-white text-blue-600 shadow': mode === 'stack' },
+          { 'text-gray-600 hover:bg-gray-300': mode !== 'stack' }
+        )}
+      >
+        Stack Mode
+      </button>
+    </div>
+  );
+}
+
+// --- UI Component for User Guidance Prompt ---
+function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-yellow-400 text-gray-900 p-4 rounded-lg shadow-2xl flex items-center gap-4 z-50">
+      <div className="flex-shrink-0">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <p className="text-sm font-medium">Trying to move or add items? Switch to <strong>Re-Order Mode</strong> for that!</p>
+      <button onClick={onDismiss} className="text-lg font-bold hover:text-black">&times;</button>
+    </div>
+  );
+}
+
 
 export type DropIndicator = {
   targetId: string;
@@ -17,13 +66,10 @@ export type DropIndicator = {
   index?: number;
 } | null;
 
-// --- FIX START ---
-// The DragValidation type now includes validStackTargetIds
 export type DragValidation = {
   validRowIds: Set<string>;
   validStackTargetIds: Set<string>;
 } | null;
-// --- FIX END ---
 
 interface PlanogramEditorProps {
   initialSkus: Sku[];
@@ -35,6 +81,11 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
+  const [interactionMode, setInteractionMode] = useState<'reorder' | 'stack'>('reorder');
+  
+  // State for the smart prompt
+  const [showModePrompt, setShowModePrompt] = useState(false);
+  const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -42,7 +93,15 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     usePlanogramStore.setState({ refrigerator: initialLayout });
   }, [initialLayout]);
 
+  function handleModeChange(newMode: 'reorder' | 'stack') {
+    setInteractionMode(newMode);
+    // Reset prompts when user manually changes mode
+    setShowModePrompt(false);
+    setInvalidModeAttempts(0);
+  }
+
   function handleDragStart(event: DragStartEvent) {
+    setShowModePrompt(false); // Hide prompt on new drag
     actions.selectItem(null);
     const { active } = event;
     const activeData = active.data.current;
@@ -62,8 +121,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
 
     if (draggedItem) {
       const validRowIds = new Set<string>();
-      // --- FIX START ---
-      // We now calculate and store the valid stack targets here
       const validStackTargetIds = new Set<string>();
       const draggedItemWidth = draggedItem.width;
       const draggedItemHeight = draggedItem.height;
@@ -90,9 +147,7 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
           }
         }
       }
-      // Update the state with both sets of IDs
       setDragValidation({ validRowIds, validStackTargetIds });
-      // --- FIX END ---
     }
   }
   
@@ -102,91 +157,121 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
 
     const activeId = active.id as string;
     const overId = over.id as string;
-    const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
-    
-    const isStackingAttempt = activeType === 'stack' && overType === 'stack' && activeId !== overId;
-    if (isStackingAttempt) {
-      const draggedStack = active.data.current?.items;
-      const isSingleItemStack = draggedStack?.length === 1 && draggedStack[0].constraints.stackable;
-      if (isSingleItemStack) {
+    const activeType = active.data.current?.type;
+
+    // Allow re-order indicators for SKU items regardless of mode
+    if (activeType === 'sku' || interactionMode === 'reorder') {
+      let overRowId: string | undefined;
+      let stackIndex: number | undefined;
+      
+      if (overType === 'row') {
+        overRowId = overId;
+        stackIndex = over.data.current?.items?.length || 0;
+      } else if (overType === 'stack') {
+        const location = findStackLocation(overId);
+        if (location) {
+          overRowId = location.rowId;
+          stackIndex = location.stackIndex;
+        }
+      }
+      
+      if (overRowId && stackIndex !== undefined) {
+        setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
+        return; // Exit after setting reorder indicator
+      }
+    }
+
+    if (interactionMode === 'stack') {
+      const isStackingPossible = dragValidation?.validStackTargetIds.has(overId);
+      if (isStackingPossible && overType === 'stack' && activeId !== overId) {
         setDropIndicator({ type: 'stack', targetId: overId });
         return;
       }
     }
-
-    let overRowId: string | undefined;
-    let stackIndex: number | undefined;
     
-    if (overType === 'row') {
-      overRowId = overId;
-      stackIndex = over.data.current?.items?.length || 0;
-    } else if (overType === 'stack') {
-      const location = findStackLocation(overId);
-      if (location) {
-        overRowId = location.rowId;
-        stackIndex = location.stackIndex;
-      }
-    }
-    
-    if (overRowId && stackIndex !== undefined) {
-      setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
-    } else {
-      setDropIndicator(null);
-    }
+    setDropIndicator(null); // Fallback if no valid action
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    setActiveItem(null);
-    setDropIndicator(null);
-    setDragValidation(null);
-
-    if (!over || !dropIndicator) return;
     
-    if (dragValidation && dropIndicator.targetRowId && !dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-        return; 
-    }
-    
-    const activeId = active.id as string;
     const activeType = active.data.current?.type;
 
-    if (dropIndicator.type === 'stack') {
-      actions.stackItem(activeId, dropIndicator.targetId);
-      return;
-    }
-    
-    if (dropIndicator.type === 'reorder' && dropIndicator.targetRowId) {
-      if (activeType === 'sku') {
-        actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
-      } else if (activeType === 'stack') {
-        const startLocation = findStackLocation(activeId);
-        if (!startLocation) return;
-        
-        if (startLocation.rowId === dropIndicator.targetRowId) {
-          actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
-        } else {
-          actions.moveItem(activeId, dropIndicator.targetRowId, dropIndicator.index);
+    // --- Universal Action: Add from SKU ---
+    if (activeType === 'sku') {
+      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
+        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+          actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
+          setInvalidModeAttempts(0); // Reset on success
         }
       }
     }
+    // --- Mode-Gated Actions ---
+    else if (interactionMode === 'stack') {
+      if (dropIndicator?.type === 'stack') {
+        actions.stackItem(active.id as string, dropIndicator.targetId);
+        setInvalidModeAttempts(0); // Reset on success
+      } else if (over) { // Dropped somewhere, but not a valid stack action
+        const newAttemptCount = invalidModeAttempts + 1;
+        setInvalidModeAttempts(newAttemptCount);
+        if (newAttemptCount >= 2) {
+          setShowModePrompt(true);
+        }
+      }
+    } 
+    else if (interactionMode === 'reorder') {
+      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
+        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+          const startLocation = findStackLocation(active.id as string);
+          if (!startLocation) return;
+          
+          if (startLocation.rowId === dropIndicator.targetRowId) {
+            actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
+          } else {
+            actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
+          }
+          setInvalidModeAttempts(0); // Reset on success
+        }
+      }
+    }
+
+    // Reset all transient drag states
+    setActiveItem(null);
+    setDropIndicator(null);
+    setDragValidation(null);
   }
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
-        <div className="flex flex-col md:flex-row gap-8">
-          <SkuPalette skus={initialSkus} />
-          <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
+    <>
+      <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+      <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
+          <div className="flex flex-col md:flex-row gap-8">
+            <SkuPalette skus={initialSkus} />
+            <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
+          </div>
+          <div>
+            <InfoPanel />
+            <StatePreview />
+          </div>
         </div>
-        <div>
-          <InfoPanel />
-          <StatePreview />
-        </div>
-      </div>
-      <DragOverlay>
-        {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
-      </DragOverlay>
-    </DndContext>
+        <DragOverlay>
+          {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
+        </DragOverlay>
+      </DndContext>
+      <AnimatePresence>
+        {showModePrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          >
+            <ModePrompt onDismiss={() => setShowModePrompt(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
