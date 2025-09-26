@@ -83,7 +83,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
   const [interactionMode, setInteractionMode] = useState<'reorder' | 'stack'>('reorder');
   
-  // State for the smart prompt
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
@@ -95,27 +94,29 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
     setInteractionMode(newMode);
-    // Reset prompts when user manually changes mode
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
   }
 
   function handleDragStart(event: DragStartEvent) {
-    setShowModePrompt(false); // Hide prompt on new drag
+    setShowModePrompt(false);
     actions.selectItem(null);
     const { active } = event;
     const activeData = active.data.current;
     
     let draggedItem: Item | Sku | null = null;
-    let isDraggedItemStackable = false;
+    let draggedEntityHeight = 0;
+    let isSingleItemStackable = false;
 
     if (activeData?.type === 'sku') {
       draggedItem = activeData.sku;
-      isDraggedItemStackable = draggedItem.constraints.stackable;
+      draggedEntityHeight = draggedItem.height;
+      isSingleItemStackable = draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
     } else if (activeData?.type === 'stack' && activeData.items.length > 0) {
-      draggedItem = activeData.items[0];
-      isDraggedItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
+      draggedItem = activeData.items[0]; // For rules, we check the base item
+      draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
+      isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
     }
 
@@ -123,25 +124,37 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       const validRowIds = new Set<string>();
       const validStackTargetIds = new Set<string>();
       const draggedItemWidth = draggedItem.width;
-      const draggedItemHeight = draggedItem.height;
+      const placementRule = draggedItem.constraints.movableRows;
       const originLocation = activeData?.type === 'stack' ? findStackLocation(active.id as string) : null;
 
       for (const rowId in refrigerator) {
         const row = refrigerator[rowId];
-        const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
         
-        const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
-        if (widthWithoutActiveItem + draggedItemWidth <= row.capacity) {
-          validRowIds.add(rowId);
-        }
+        // --- CENTRALIZED VALIDATION ---
+        // Rule 1: Placement Restriction (movableRows)
+        const isRowAllowedByPlacement = placementRule === 'all' || placementRule.includes(rowId);
+        if (!isRowAllowedByPlacement) continue;
 
-        if (isDraggedItemStackable) {
+        // Rule 2: Height Restriction (maxHeight)
+        if (draggedEntityHeight > row.maxHeight) continue;
+
+        // Rule 3: Width Restriction (capacity)
+        const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
+        const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
+        if (widthWithoutActiveItem + draggedItemWidth > row.capacity) continue;
+        
+        // If all rules pass for re-ordering/moving, the row is valid
+        validRowIds.add(rowId);
+
+        // --- Stacking Validation (runs only for valid rows) ---
+        if (isSingleItemStackable) {
           for (const stack of row.stacks) {
             const stackId = stack[0].id;
             if (stackId === active.id) continue;
 
-            const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
-            if (stackHeight + draggedItemHeight <= row.maxHeight) {
+            const targetStackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+            // Stacking only involves adding the height of the single dragged item
+            if (targetStackHeight + draggedItem.height <= row.maxHeight) {
               validStackTargetIds.add(stackId);
             }
           }
@@ -160,7 +173,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     const overType = over.data.current?.type;
     const activeType = active.data.current?.type;
 
-    // Allow re-order indicators for SKU items regardless of mode
     if (activeType === 'sku' || interactionMode === 'reorder') {
       let overRowId: string | undefined;
       let stackIndex: number | undefined;
@@ -178,7 +190,7 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       
       if (overRowId && stackIndex !== undefined) {
         setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
-        return; // Exit after setting reorder indicator
+        return;
       }
     }
 
@@ -190,7 +202,7 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       }
     }
     
-    setDropIndicator(null); // Fallback if no valid action
+    setDropIndicator(null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -198,21 +210,19 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     
     const activeType = active.data.current?.type;
 
-    // --- Universal Action: Add from SKU ---
     if (activeType === 'sku') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
         if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
           actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
-          setInvalidModeAttempts(0); // Reset on success
+          setInvalidModeAttempts(0);
         }
       }
     }
-    // --- Mode-Gated Actions ---
     else if (interactionMode === 'stack') {
       if (dropIndicator?.type === 'stack') {
         actions.stackItem(active.id as string, dropIndicator.targetId);
-        setInvalidModeAttempts(0); // Reset on success
-      } else if (over) { // Dropped somewhere, but not a valid stack action
+        setInvalidModeAttempts(0);
+      } else if (over) {
         const newAttemptCount = invalidModeAttempts + 1;
         setInvalidModeAttempts(newAttemptCount);
         if (newAttemptCount >= 2) {
@@ -231,12 +241,11 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
           } else {
             actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
           }
-          setInvalidModeAttempts(0); // Reset on success
+          setInvalidModeAttempts(0);
         }
       }
     }
 
-    // Reset all transient drag states
     setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
