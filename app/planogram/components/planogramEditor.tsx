@@ -11,6 +11,7 @@ import { ItemComponent } from './item';
 import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
+import { runValidation } from '@/lib/validation'; // Import the new validator
 
 // --- UI Component for Mode Switching ---
 interface ModeToggleProps {
@@ -114,53 +115,25 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       isSingleItemStackable = draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
     } else if (activeData?.type === 'stack' && activeData.items.length > 0) {
-      draggedItem = activeData.items[0]; // For rules, we check the base item
+      draggedItem = activeData.items[0];
       draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
       isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
       setActiveItem(draggedItem);
     }
 
     if (draggedItem) {
-      const validRowIds = new Set<string>();
-      const validStackTargetIds = new Set<string>();
-      const draggedItemWidth = draggedItem.width;
-      const placementRule = draggedItem.constraints.movableRows;
-      const originLocation = activeData?.type === 'stack' ? findStackLocation(active.id as string) : null;
-
-      for (const rowId in refrigerator) {
-        const row = refrigerator[rowId];
-        
-        // --- CENTRALIZED VALIDATION ---
-        // Rule 1: Placement Restriction (movableRows)
-        const isRowAllowedByPlacement = placementRule === 'all' || placementRule.includes(rowId);
-        if (!isRowAllowedByPlacement) continue;
-
-        // Rule 2: Height Restriction (maxHeight)
-        if (draggedEntityHeight > row.maxHeight) continue;
-
-        // Rule 3: Width Restriction (capacity)
-        const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
-        const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
-        if (widthWithoutActiveItem + draggedItemWidth > row.capacity) continue;
-        
-        // If all rules pass for re-ordering/moving, the row is valid
-        validRowIds.add(rowId);
-
-        // --- Stacking Validation (runs only for valid rows) ---
-        if (isSingleItemStackable) {
-          for (const stack of row.stacks) {
-            const stackId = stack[0].id;
-            if (stackId === active.id) continue;
-
-            const targetStackHeight = stack.reduce((sum, item) => sum + item.height, 0);
-            // Stacking only involves adding the height of the single dragged item
-            if (targetStackHeight + draggedItem.height <= row.maxHeight) {
-              validStackTargetIds.add(stackId);
-            }
-          }
-        }
-      }
-      setDragValidation({ validRowIds, validStackTargetIds });
+      // --- Refactored Validation ---
+      // All complex validation logic is now in a separate, dedicated function.
+      const validationResult = runValidation({
+        draggedItem,
+        draggedEntityHeight,
+        isSingleItemStackable,
+        activeDragId: active.id as string,
+        refrigerator,
+        findStackLocation,
+      });
+      setDragValidation(validationResult);
+      // --------------------------
     }
   }
   
