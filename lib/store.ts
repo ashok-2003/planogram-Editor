@@ -11,13 +11,17 @@ interface PlanogramState {
   actions: {
     selectItem: (itemId: string | null) => void;
     deleteSelectedItem: () => void;
-    duplicateSelectedItem: () => void;
+    duplicateAndAddNew: () => void; // Renamed for clarity
+    duplicateAndStack: () => void; // New action
+    replaceSelectedItem: (newSku: Sku) => void; // New action
     moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number) => void;
-    addItemFromSku: (sku: Sku, targetRowId: string) => void;
+    addItemFromSku: (sku: Sku, targetRowId: string, targetStackIndex?: number) => void;
     reorderStack: (rowId: string, oldIndex: number, newIndex: number) => void;
     stackItem: (draggedStackId: string, targetStackId: string) => void;
   }
 }
+
+const generateUniqueId = (skuId: string) => `${skuId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   refrigerator: {},
@@ -57,8 +61,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             return { refrigerator: newFridge, selectedItemId: null };
         });
     },
-    duplicateSelectedItem: () => {
-        const { selectedItemId, refrigerator, findStackLocation } = get();
+    duplicateAndAddNew: () => {
+        const { selectedItemId, findStackLocation } = get();
         if (!selectedItemId) return;
         
         const location = findStackLocation(selectedItemId);
@@ -66,15 +70,16 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
 
         set(state => {
             const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const stack = newFridge[location.rowId].stacks[location.stackIndex];
+            const row = newFridge[location.rowId];
+            const stack = row.stacks[location.stackIndex];
             const item = stack.find((i: Item) => i.id === selectedItemId);
             if (!item) return state;
 
-            const newItem = { ...item, id: `${item.skuId}-${Date.now()}` };
-            const currentWidth = newFridge[location.rowId].stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+            const newItem = { ...item, id: generateUniqueId(item.skuId) };
+            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
 
-            if (currentWidth + newItem.width <= newFridge[location.rowId].capacity) {
-                newFridge[location.rowId].stacks.push([newItem]);
+            if (currentWidth + newItem.width <= row.capacity) {
+                row.stacks.push([newItem]);
                 return { refrigerator: newFridge };
             } else {
                 alert("Not enough space in the row to duplicate!");
@@ -82,52 +87,112 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             }
         });
     },
-    addItemFromSku: (sku, targetRowId) => {
+    duplicateAndStack: () => {
+        const { selectedItemId, findStackLocation } = get();
+        if (!selectedItemId) return;
+        
+        const location = findStackLocation(selectedItemId);
+        if (!location) return;
+
+        set(state => {
+            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
+            const row = newFridge[location.rowId];
+            const stack = row.stacks[location.stackIndex];
+            const item = stack.find((i: Item) => i.id === selectedItemId);
+            if (!item || !item.constraints.stackable) return state;
+
+            const newItem = { ...item, id: generateUniqueId(item.skuId) };
+            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+
+            if (currentStackHeight + newItem.height <= row.maxHeight) {
+                stack.push(newItem);
+                return { refrigerator: newFridge };
+            } else {
+                alert("Cannot stack, exceeds maximum row height!");
+                return state;
+            }
+        });
+    },
+    replaceSelectedItem: (newSku) => {
+      const { selectedItemId, findStackLocation } = get();
+      if (!selectedItemId) return;
+
+      const location = findStackLocation(selectedItemId);
+      if (!location) return;
+      
+      set(state => {
+        const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
+        const row = newFridge[location.rowId];
+        const stack = row.stacks[location.stackIndex];
+        const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
+        const oldItem = stack[itemIndex];
+
+        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
+
+        // --- VALIDATION ---
+        // 1. Check Product Type
+        if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
+          alert(`Invalid replacement: This row does not accept product type "${newItem.productType}".`);
+          return state;
+        }
+
+        // 2. Check Width
+        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+        const widthDifference = newItem.width - oldItem.width;
+        if (currentWidth + widthDifference > row.capacity) {
+          alert("Invalid replacement: The new item is too wide for the remaining space in this row.");
+          return state;
+        }
+
+        // 3. Check Height
+        const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+        const heightDifference = newItem.height - oldItem.height;
+        if (currentStackHeight + heightDifference > row.maxHeight) {
+          alert("Invalid replacement: The new item is too tall for this stack.");
+          return state;
+        }
+
+        // --- If all checks pass, replace the item ---
+        stack[itemIndex] = newItem;
+        return { refrigerator: newFridge, selectedItemId: newItem.id };
+      });
+    },
+    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
         set(state => {
             const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
             const targetRow = newFridge[targetRowId];
             if(!targetRow) return state;
             
-            const newItem: Item = { ...sku, id: `${sku.skuId}-${Date.now()}` };
-            const currentWidth = targetRow.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
-
-            if (currentWidth + newItem.width <= targetRow.capacity) {
-                targetRow.stacks.push([newItem]);
-                return { refrigerator: newFridge };
+            const newItem: Item = { ...sku, id: generateUniqueId(sku.skuId) };
+            
+            if (targetStackIndex >= 0 && targetStackIndex <= targetRow.stacks.length) {
+              targetRow.stacks.splice(targetStackIndex, 0, [newItem]);
             } else {
-                console.warn(`Row ${targetRowId} is full. Cannot add new item.`);
-                return state;
+              targetRow.stacks.push([newItem]);
             }
+            
+            return { refrigerator: newFridge };
         });
     },
     moveItem: (itemId, targetRowId, targetStackIndex) => {
         set(state => {
-             const { findStackLocation } = get();
-             const location = findStackLocation(itemId);
-             if (!location) return state;
+            const { findStackLocation } = get();
+            const location = findStackLocation(itemId);
+            if (!location) return state;
 
-             const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-             const draggedStack = newFridge[location.rowId].stacks[location.stackIndex];
-             
-             newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
-             
+            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
+            const draggedStack = newFridge[location.rowId].stacks[location.stackIndex];
+            
+            newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
+            
+            const targetRow = newFridge[targetRowId];
+            if (targetStackIndex !== undefined) {
+                targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+            } else {
+                targetRow.stacks.push(draggedStack);
+            }
 
-             const targetRow = newFridge[targetRowId];
-             const currentWidth = targetRow.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
-             const draggedStackWidth = draggedStack[0]?.width || 0;
-
-             if (currentWidth + draggedStackWidth <= targetRow.capacity) {
-                 if (targetStackIndex !== undefined) {
-                     targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
-                 } else {
-                     targetRow.stacks.push(draggedStack);
-                 }
-             } else {
-                 console.warn(`Row ${targetRowId} is full. Move reverted.`);
-                 newFridge[location.rowId].stacks.splice(location.stackIndex, 0, draggedStack);
-             }
-
-             return { refrigerator: newFridge };
+            return { refrigerator: newFridge };
         });
     },
     reorderStack: (rowId, oldIndex, newIndex) => {
@@ -151,23 +216,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const row = newFridge[draggedLocation.rowId];
             const draggedStack = row.stacks[draggedLocation.stackIndex];
             const targetStack = row.stacks[targetLocation.stackIndex];
-
-            if (!draggedStack || draggedStack.length !== 1) {
-                console.warn("Can only stack single items.");
-                return state;
-            }
-
             const itemToStack = draggedStack[0];
-            if (!itemToStack.constraints.stackable) {
-                console.warn("Item is not stackable.");
-                return state;
-            }
-
-            const currentTargetHeight = targetStack.reduce((acc: number, item: Item) => acc + item.height, 0);
-            if (currentTargetHeight + itemToStack.height > row.maxHeight) {
-                console.warn("Stacking exceeds max row height.");
-                return state;
-            }
             
             targetStack.push(itemToStack);
             row.stacks.splice(draggedLocation.stackIndex, 1);
