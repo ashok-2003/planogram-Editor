@@ -120,14 +120,18 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
 
     if (activeData?.type === 'sku') {
       draggedItem = activeData.sku;
-      draggedEntityHeight = draggedItem.height;
-      isSingleItemStackable = draggedItem.constraints.stackable;
-      setActiveItem(draggedItem);
+      if (draggedItem) {
+        draggedEntityHeight = draggedItem.height;
+        isSingleItemStackable = draggedItem.constraints.stackable;
+        setActiveItem(draggedItem);
+      }
     } else if (activeData?.type === 'stack' && activeData.items.length > 0) {
       draggedItem = activeData.items[0];
-      draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
-      isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
-      setActiveItem(draggedItem);
+      if (draggedItem) {
+        draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
+        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
+        setActiveItem(draggedItem);
+      }
     }
 
     if (draggedItem) {
@@ -190,7 +194,7 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     const activeType = active.data.current?.type;
 
     if (activeType === 'sku') {
-      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
+      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
         if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
           actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
           setInvalidModeAttempts(0);
@@ -213,7 +217,7 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
         if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
           const startLocation = findStackLocation(active.id as string);
-          if (!startLocation) return;
+          if (!startLocation || dropIndicator.index === undefined) return;
           
           if (startLocation.rowId === dropIndicator.targetRowId) {
             actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
