@@ -13,6 +13,34 @@ import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation } from '@/lib/validation';
 
+// --- UI Component for Layout Switching ---
+interface LayoutSelectorProps {
+  layouts: { [key: string]: { name: string; layout: Refrigerator } };
+  selectedLayout: string;
+  onLayoutChange: (layoutId: string) => void;
+}
+
+function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
+  return (
+    <div className="mb-6 max-w-sm">
+      <label htmlFor="layout-select" className="block text-sm font-medium text-gray-700 mb-1">
+        Refrigerator Model
+      </label>
+      <select
+        id="layout-select"
+        value={selectedLayout}
+        onChange={(e) => onLayoutChange(e.target.value)}
+        className="mt-1 block w-full pl-3 pr-10 py-2 text-yellow-400 border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+      >
+        {Object.keys(layouts).map(layoutId => (
+          <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+
 // --- UI Component for Mode Switching ---
 interface ModeToggleProps {
   mode: 'reorder' | 'stack';
@@ -75,9 +103,10 @@ export type DragValidation = {
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
+  initialLayouts: { [key: string]: { name: string; layout: Refrigerator } }; // New prop
 }
 
-export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorProps) {
+export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
@@ -87,12 +116,12 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
-  // --- FIX for Hydration Error ---
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('default');
+
   const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
-  // -----------------------------
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -101,6 +130,15 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
       usePlanogramStore.setState({ refrigerator: initialLayout });
     }
   }, [initialLayout, hasMounted]);
+
+  function handleLayoutChange(layoutId: string) {
+    setSelectedLayoutId(layoutId);
+    const newLayout = initialLayouts[layoutId]?.layout;
+    if (newLayout) {
+      actions.selectItem(null);
+      usePlanogramStore.setState({ refrigerator: newLayout });
+    }
+  }
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
     setInteractionMode(newMode);
@@ -234,14 +272,13 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     setDragValidation(null);
   }
   
-  // By returning null until the component has mounted on the client,
-  // we prevent the DndContext from rendering on the server and causing a mismatch.
   if (!hasMounted) {
-    return null;
+    return null; // or a loading skeleton
   }
 
   return (
     <>
+      <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
       <ModeToggle mode={interactionMode} setMode={handleModeChange} />
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
@@ -250,8 +287,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
             <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
           </div>
           <div>
-            {/* --- FIX for TypeError --- */}
-            {/* We now correctly pass the list of available SKUs to the InfoPanel. */}
             <InfoPanel availableSkus={initialSkus} />
             <StatePreview />
           </div>
