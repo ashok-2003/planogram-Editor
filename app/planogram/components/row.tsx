@@ -62,8 +62,8 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
 
       {/* Disabled overlay */}
       {isDisabled && (
-        <div className="absolute inset-0 bg-gray-900/40 rounded-lg flex items-center justify-center">
-          <div className="text-gray-500 text-sm font-medium bg-gray-800/80 px-3 py-1 rounded-full">
+        <div className="absolute inset-0 bg-red-400/40 rounded-lg flex items-center justify-center">
+          <div className="text-red-500 text-sm font-medium bg-gray-800/80 px-3 py-1 rounded-full z-10">
             Cannot drop here
           </div>
         </div>
