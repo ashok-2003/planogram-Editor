@@ -1,38 +1,38 @@
-// lib/types.ts
-
 /**
  * Defines the constraints for an individual item.
- * These are the business rules for each product.
+ * These are the business rules inherent to the product itself.
+ * Note: 'movableRows' has been removed from here.
  */
 export interface ItemConstraints {
   stackable: boolean;
-  movableRows: 'all' | string[]; // Can be moved to any row or only specific row IDs
   deletable: boolean;
 }
 
 /**
  * Represents a single physical item in the refrigerator.
- * Each item has a unique instance ID.
+ * Each item has a unique instance ID and a 'productType'.
  */
 export interface Item {
   id: string; // Unique instance ID, e.g., 'pepsi-can-12345'
   skuId: string; // SKU ID from backend, e.g., 'sku-pepsi-can'
   name: string;
-  width: number; // in abstract units, e.g., pixels
-  height: number; // in abstract units
+  width: number;
+  height: number;
   imageUrl: string;
+  productType: string; // NEW: e.g., 'PET', 'SSS', 'TETRA'
   constraints: ItemConstraints;
 }
 
 /**
  * Represents a single row (shelf) in the refrigerator.
- * A row contains stacks of items.
+ * A row now defines which product types it can accept.
  */
 export interface Row {
   id: string; // e.g., 'row-1'
-  capacity: number; // Max total width of all stacks in this row
-  maxHeight: number; // Max height of any single stack in this row
-  stacks: Item[][]; // An array of stacks, where each stack is an array of Items
+  capacity: number;
+  maxHeight: number;
+  stacks: Item[][];
+  allowedProductTypes: 'all' | string[]; // NEW: The core of our new rule system
 }
 
 /**
@@ -48,10 +48,11 @@ export interface Refrigerator {
  * This is the template used to create new Item instances.
  */
 export interface Sku {
-    skuId: string;
-    name: string;
-    width: number;
-    height: number;
-    imageUrl: string;
-    constraints: ItemConstraints;
+  skuId: string;
+  name: string;
+  width: number;
+  height: number;
+  imageUrl: string;
+  productType: string; // NEW: e.g., 'PET', 'SSS', 'TETRA'
+  constraints: ItemConstraints;
 }
