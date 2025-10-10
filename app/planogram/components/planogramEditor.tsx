@@ -239,7 +239,36 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
           </div>
         </div>
         <DragOverlay>
-          {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
+          {activeItem ? (
+            <motion.div
+              initial={{ scale: 1.1, rotate: 2 }}
+              animate={{ 
+                scale: 1.05, 
+                rotate: -1,
+                boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)"
+              }}
+              transition={{ 
+                duration: 0.2,
+                boxShadow: { duration: 0.1 }
+              }}
+              className="relative"
+            >
+              {/* Trailing particles effect */}
+              <motion.div
+                className="absolute inset-0 bg-blue-400/20 rounded-lg blur-md"
+                animate={{
+                  scale: [1, 1.2, 1],
+                  opacity: [0.3, 0.1, 0.3]
+                }}
+                transition={{
+                  duration: 1,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+              <ItemComponent item={activeItem as Item} />
+            </motion.div>
+          ) : null}
         </DragOverlay>
       </DndContext>
       <AnimatePresence>
