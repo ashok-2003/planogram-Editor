@@ -11,7 +11,7 @@ import { ItemComponent } from './item';
 import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { runValidation } from '@/lib/validation'; // Import the new validator
+import { runValidation } from '@/lib/validation';
 
 // --- UI Component for Mode Switching ---
 interface ModeToggleProps {
@@ -87,11 +87,20 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
+  // --- FIX for Hydration Error ---
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  // -----------------------------
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
-    usePlanogramStore.setState({ refrigerator: initialLayout });
-  }, [initialLayout]);
+    if (hasMounted) {
+      usePlanogramStore.setState({ refrigerator: initialLayout });
+    }
+  }, [initialLayout, hasMounted]);
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
     setInteractionMode(newMode);
@@ -122,8 +131,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     }
 
     if (draggedItem) {
-      // --- Refactored Validation ---
-      // All complex validation logic is now in a separate, dedicated function.
       const validationResult = runValidation({
         draggedItem,
         draggedEntityHeight,
@@ -133,7 +140,6 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
         findStackLocation,
       });
       setDragValidation(validationResult);
-      // --------------------------
     }
   }
   
@@ -223,6 +229,12 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
     setDropIndicator(null);
     setDragValidation(null);
   }
+  
+  // By returning null until the component has mounted on the client,
+  // we prevent the DndContext from rendering on the server and causing a mismatch.
+  if (!hasMounted) {
+    return null;
+  }
 
   return (
     <>
@@ -234,41 +246,14 @@ export function PlanogramEditor({ initialSkus, initialLayout }: PlanogramEditorP
             <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
           </div>
           <div>
-            <InfoPanel />
+            {/* --- FIX for TypeError --- */}
+            {/* We now correctly pass the list of available SKUs to the InfoPanel. */}
+            <InfoPanel availableSkus={initialSkus} />
             <StatePreview />
           </div>
         </div>
         <DragOverlay>
-          {activeItem ? (
-            <motion.div
-              initial={{ scale: 1.1, rotate: 2 }}
-              animate={{ 
-                scale: 1.05, 
-                rotate: -1,
-                boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)"
-              }}
-              transition={{ 
-                duration: 0.2,
-                boxShadow: { duration: 0.1 }
-              }}
-              className="relative"
-            >
-              {/* Trailing particles effect */}
-              <motion.div
-                className="absolute inset-0 bg-blue-400/20 rounded-lg blur-md"
-                animate={{
-                  scale: [1, 1.2, 1],
-                  opacity: [0.3, 0.1, 0.3]
-                }}
-                transition={{
-                  duration: 1,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              />
-              <ItemComponent item={activeItem as Item} />
-            </motion.div>
-          ) : null}
+          {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
         </DragOverlay>
       </DndContext>
       <AnimatePresence>
