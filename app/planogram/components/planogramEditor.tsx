@@ -11,7 +11,7 @@ import { ItemComponent } from './item';
 import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { runValidation } from '@/lib/validation';
+import { runValidation, findConflicts } from '@/lib/validation'; // Import the new conflict finder
 
 // --- UI Component for Layout Switching ---
 interface LayoutSelectorProps {
@@ -30,7 +30,7 @@ function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelec
         id="layout-select"
         value={selectedLayout}
         onChange={(e) => onLayoutChange(e.target.value)}
-        className="mt-1 block w-full pl-3 pr-10 py-2 text-yellow-400 border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
       >
         {Object.keys(layouts).map(layoutId => (
           <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
@@ -87,6 +87,50 @@ function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+// --- NEW: UI Component for Rule Toggle ---
+function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <label htmlFor="rule-toggle" className="text-sm font-medium text-gray-700">
+        Enforce Placement Rules
+      </label>
+      <button
+        id="rule-toggle"
+        onClick={() => onToggle(!isEnabled)}
+        className={clsx(
+          "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+          isEnabled ? 'bg-blue-600' : 'bg-gray-200'
+        )}
+      >
+        <span
+          className={clsx(
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            isEnabled ? 'translate-x-5' : 'translate-x-0'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+// --- NEW: UI Component for Conflict Resolution ---
+function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) {
+  return (
+    <div className="fixed bottom-5 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm">
+      <strong className="font-bold">Rule Conflict Detected!</strong>
+      <p className="block sm:inline">{conflictCount} item(s) violate the current placement rules.</p>
+      <div className="mt-3 flex gap-3">
+        <button onClick={onRemove} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm">
+          Remove Conflicts
+        </button>
+        <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
+          Disable Rules
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 export type DropIndicator = {
   targetId: string;
@@ -103,7 +147,7 @@ export type DragValidation = {
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
-  initialLayouts: { [key: string]: { name: string; layout: Refrigerator } }; // New prop
+  initialLayouts: { [key: string]: { name: string; layout: Refrigerator } };
 }
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
@@ -116,20 +160,28 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('default');
+  // --- NEW STATE FOR RULE MANAGEMENT ---
+  const [isRulesEnabled, setIsRulesEnabled] = useState(true);
+  const [conflictIds, setConflictIds] = useState<string[]>([]);
+  // ------------------------------------
 
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('default');
   const [hasMounted, setHasMounted] = useState(false);
+
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
+  // This effect runs whenever the refrigerator layout changes.
+  // It checks for conflicts and updates the state.
   useEffect(() => {
-    if (hasMounted) {
-      usePlanogramStore.setState({ refrigerator: initialLayout });
+    if (refrigerator && Object.keys(refrigerator).length > 0) {
+      const conflicts = findConflicts(refrigerator);
+      setConflictIds(conflicts);
     }
-  }, [initialLayout, hasMounted]);
+  }, [refrigerator]);
 
   function handleLayoutChange(layoutId: string) {
     setSelectedLayoutId(layoutId);
@@ -180,6 +232,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         activeDragId: active.id as string,
         refrigerator,
         findStackLocation,
+        isRulesEnabled, // Pass the toggle state to the validator
       });
       setDragValidation(validationResult);
     }
@@ -228,49 +281,45 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    
     const activeType = active.data.current?.type;
-
     if (activeType === 'sku') {
-      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-          actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
-          setInvalidModeAttempts(0);
+        if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
+            if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+                actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
+                setInvalidModeAttempts(0);
+            }
         }
-      }
     }
     else if (interactionMode === 'stack') {
-      if (dropIndicator?.type === 'stack') {
-        actions.stackItem(active.id as string, dropIndicator.targetId);
-        setInvalidModeAttempts(0);
-      } else if (over) {
-        const newAttemptCount = invalidModeAttempts + 1;
-        setInvalidModeAttempts(newAttemptCount);
-        if (newAttemptCount >= 2) {
-          setShowModePrompt(true);
+        if (dropIndicator?.type === 'stack') {
+            actions.stackItem(active.id as string, dropIndicator.targetId);
+            setInvalidModeAttempts(0);
+        } else if (over) {
+            const newAttemptCount = invalidModeAttempts + 1;
+            setInvalidModeAttempts(newAttemptCount);
+            if (newAttemptCount >= 2) {
+                setShowModePrompt(true);
+            }
         }
-      }
-    } 
-    else if (interactionMode === 'reorder') {
-      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-          const startLocation = findStackLocation(active.id as string);
-          if (!startLocation || dropIndicator.index === undefined) return;
-          
-          if (startLocation.rowId === dropIndicator.targetRowId) {
-            actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
-          } else {
-            actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
-          }
-          setInvalidModeAttempts(0);
-        }
-      }
     }
-
+    else if (interactionMode === 'reorder') {
+        if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
+            if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+                const startLocation = findStackLocation(active.id as string);
+                if (!startLocation || dropIndicator.index === undefined) return;
+                if (startLocation.rowId === dropIndicator.targetRowId) {
+                    actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
+                } else {
+                    actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
+                }
+                setInvalidModeAttempts(0);
+            }
+        }
+    }
     setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
-  }
+}
   
   if (!hasMounted) {
     return null; // or a loading skeleton
@@ -278,13 +327,19 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   return (
     <>
-      <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
+      <div className="flex justify-between items-start">
+        <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
+        <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
+      </div>
       <ModeToggle mode={interactionMode} setMode={handleModeChange} />
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
           <div className="flex flex-col md:flex-row gap-8">
             <SkuPalette skus={initialSkus} />
-            <RefrigeratorComponent dragValidation={dragValidation} dropIndicator={dropIndicator} />
+            <RefrigeratorComponent 
+              dragValidation={dragValidation} 
+              dropIndicator={dropIndicator} 
+            />
           </div>
           <div>
             <InfoPanel availableSkus={initialSkus} />
@@ -296,6 +351,15 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         </DragOverlay>
       </DndContext>
       <AnimatePresence>
+        {isRulesEnabled && conflictIds.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
+            <ConflictPanel 
+              conflictCount={conflictIds.length}
+              onRemove={() => actions.removeItemsById(conflictIds)}
+              onDisableRules={() => setIsRulesEnabled(false)}
+            />
+          </motion.div>
+        )}
         {showModePrompt && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}

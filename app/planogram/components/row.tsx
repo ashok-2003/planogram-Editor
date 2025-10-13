@@ -81,7 +81,7 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
                     animate={{ scaleY: 1, opacity: 1 }}
                     exit={{ scaleY: 0, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="w-1 self-stretch bg-blue-400 rounded-full relative"
+                    className="w-full self-stretch bg-blue-400 rounded-full relative"
                   >
                     <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-400 rounded-full" />
                   </motion.div>

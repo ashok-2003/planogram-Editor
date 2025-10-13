@@ -9,7 +9,41 @@ interface ValidationPayload {
   activeDragId: string;
   refrigerator: Refrigerator;
   findStackLocation: (itemId: string) => { rowId: string; stackIndex: number } | null;
+  isRulesEnabled: boolean; // New: To respect the toggle
 }
+
+/**
+ * NEW: Iterates through a refrigerator layout to find all items that violate shelf rules.
+ * @param refrigerator The current state of the refrigerator.
+ * @returns An array of item IDs that are in conflict with the rules.
+ */
+export function findConflicts(refrigerator: Refrigerator): string[] {
+  const conflictIds: string[] = [];
+
+  for (const rowId in refrigerator) {
+    const row = refrigerator[rowId];
+    for (const stack of row.stacks) {
+      // 1. Check for Height Conflicts within the stack
+      const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+      if (stackHeight > row.maxHeight) {
+        // Mark all items in the oversized stack as conflicts
+        stack.forEach(item => conflictIds.push(item.id));
+      }
+
+      // 2. Check for Placement Conflicts for each item in the stack
+      for (const item of stack) {
+        if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(item.productType)) {
+          // Mark this specific misplaced item as a conflict
+          if (!conflictIds.includes(item.id)) {
+            conflictIds.push(item.id);
+          }
+        }
+      }
+    }
+  }
+  return conflictIds;
+}
+
 
 /**
  * A centralized function to run all business logic checks when a drag starts.
@@ -23,28 +57,37 @@ export function runValidation({
   activeDragId,
   refrigerator,
   findStackLocation,
+  isRulesEnabled, // Now respects the toggle state
 }: ValidationPayload): DragValidation {
   const validRowIds = new Set<string>();
   const validStackTargetIds = new Set<string>();
 
+  // If rules are disabled, every possible target is valid.
+  if (!isRulesEnabled) {
+    for (const rowId in refrigerator) {
+      validRowIds.add(rowId);
+      for (const stack of refrigerator[rowId].stacks) {
+        if (stack[0] && stack[0].id !== activeDragId) {
+          validStackTargetIds.add(stack[0].id);
+        }
+      }
+    }
+    return { validRowIds, validStackTargetIds };
+  }
+  
+  // --- If rules ARE enabled, run the full logic ---
   const draggedItemWidth = draggedItem.width;
   const originLocation = findStackLocation(activeDragId);
 
-  // --- 1. VALIDATION FOR RE-ORDERING / MOVING ---
+  // 1. VALIDATION FOR RE-ORDERING / MOVING
   for (const rowId in refrigerator) {
     const row = refrigerator[rowId];
     
-    // --- Business Rules Engine (Refactored) ---
-
-    // Rule 1: Placement Restriction (Allowed Product Types)
-    // CHECKS IF THE ROW ACCEPTS THE DRAGGED ITEM'S TYPE.
     const isRowAllowedByPlacement = row.allowedProductTypes === 'all' || row.allowedProductTypes.includes(draggedItem.productType);
     if (!isRowAllowedByPlacement) continue;
 
-    // Rule 2: Height Restriction
     if (draggedEntityHeight > row.maxHeight) continue;
 
-    // Rule 3: Width Restriction
     const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
     const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
     if (widthWithoutActiveItem + draggedItemWidth > row.capacity) continue;
@@ -52,16 +95,14 @@ export function runValidation({
     validRowIds.add(rowId);
   }
 
-  // --- 2. VALIDATION FOR STACKING ---
+  // 2. VALIDATION FOR STACKING
   if (isSingleItemStackable) {
     for (const rowId in refrigerator) {
       const row = refrigerator[rowId];
 
-      // Stacking must still respect the row's allowed product types.
       const isRowAllowedByPlacement = row.allowedProductTypes === 'all' || row.allowedProductTypes.includes(draggedItem.productType);
       if (!isRowAllowedByPlacement) continue;
 
-      // The single dragged item itself must fit within the row's max height.
       if (draggedItem.height > row.maxHeight) continue;
 
       for (const stack of row.stacks) {

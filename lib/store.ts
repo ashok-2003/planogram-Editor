@@ -11,9 +11,10 @@ interface PlanogramState {
   actions: {
     selectItem: (itemId: string | null) => void;
     deleteSelectedItem: () => void;
-    duplicateAndAddNew: () => void; // Renamed for clarity
-    duplicateAndStack: () => void; // New action
-    replaceSelectedItem: (newSku: Sku) => void; // New action
+    removeItemsById: (itemIds: string[]) => void; // New action
+    duplicateAndAddNew: () => void;
+    duplicateAndStack: () => void;
+    replaceSelectedItem: (newSku: Sku) => void;
     moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number) => void;
     addItemFromSku: (sku: Sku, targetRowId: string, targetStackIndex?: number) => void;
     reorderStack: (rowId: string, oldIndex: number, newIndex: number) => void;
@@ -41,25 +42,35 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   actions: {
     selectItem: (itemId) => set({ selectedItemId: itemId }),
     deleteSelectedItem: () => {
-        const { selectedItemId, findStackLocation } = get();
+        const { selectedItemId, actions } = get();
         if (!selectedItemId) return;
+        actions.removeItemsById([selectedItemId]);
+    },
+    removeItemsById: (itemIds) => {
+      set(state => {
+        const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
+        let itemsRemoved = false;
         
-        const location = findStackLocation(selectedItemId);
-        if (!location) return;
+        for (const rowId in newFridge) {
+          // Filter out empty stacks that result from removing items
+          newFridge[rowId].stacks = newFridge[rowId].stacks
+            .map((stack: Item[]) => {
+              // Filter out the items to be removed from this stack
+              return stack.filter(item => {
+                const shouldRemove = itemIds.includes(item.id);
+                if (shouldRemove) itemsRemoved = true;
+                return !shouldRemove;
+              });
+            })
+            // After filtering items, filter out any stacks that are now empty
+            .filter((stack: Item[]) => stack.length > 0);
+        }
 
-        set(state => {
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const stack = newFridge[location.rowId].stacks[location.stackIndex];
-            const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
-
-            if(itemIndex > -1) {
-                stack.splice(itemIndex, 1);
-                if (stack.length === 0) {
-                    newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
-                }
-            }
-            return { refrigerator: newFridge, selectedItemId: null };
-        });
+        if (itemsRemoved) {
+          return { refrigerator: newFridge, selectedItemId: null };
+        }
+        return state; // No changes
+      });
     },
     duplicateAndAddNew: () => {
         const { selectedItemId, findStackLocation } = get();
@@ -129,22 +140,16 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
 
         const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
-        // --- VALIDATION ---
-        // 1. Check Product Type
         if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
           alert(`Invalid replacement: This row does not accept product type "${newItem.productType}".`);
           return state;
         }
-
-        // 2. Check Width
         const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
         const widthDifference = newItem.width - oldItem.width;
         if (currentWidth + widthDifference > row.capacity) {
           alert("Invalid replacement: The new item is too wide for the remaining space in this row.");
           return state;
         }
-
-        // 3. Check Height
         const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
         const heightDifference = newItem.height - oldItem.height;
         if (currentStackHeight + heightDifference > row.maxHeight) {
@@ -152,7 +157,6 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           return state;
         }
 
-        // --- If all checks pass, replace the item ---
         stack[itemIndex] = newItem;
         return { refrigerator: newFridge, selectedItemId: newItem.id };
       });

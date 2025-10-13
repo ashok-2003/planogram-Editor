@@ -56,7 +56,7 @@ export const initialLayout: Refrigerator = {
   'row-5': { id: 'row-5', capacity: 600, maxHeight: 30, allowedProductTypes: ['PET_LARGE'], stacks: [] },
 };
 
-// --- NEW: AVAILABLE REFRIGERATOR LAYOUTS ---
+// --- AVAILABLE REFRIGERATOR LAYOUTS ---
 export const availableLayoutsData = {
   'default': { name: 'Default 5-Shelf Cooler', layout: initialLayout },
   'single-door': {
@@ -74,6 +74,31 @@ export const availableLayoutsData = {
       'row-1': { id: 'row-1', capacity: 800, maxHeight: 12, allowedProductTypes: ['CHIPS'], stacks: [] },
       'row-2': { id: 'row-2', capacity: 800, maxHeight: 12, allowedProductTypes: ['CHIPS'], stacks: [] },
     }
+  },
+  // --- NEW "FAULTY" LAYOUT FOR TESTING ---
+  'faulty-setup': {
+    name: 'Conflict Test Cooler',
+    layout: {
+      'row-1': { 
+        id: 'row-1', capacity: 500, maxHeight: 20, allowedProductTypes: ['CAN', 'TETRA'], 
+        stacks: [
+          // CONFLICT 1: This PET_LARGE item is not allowed in this row.
+          [{...availableSkus[2], id: generateUniqueId(availableSkus[2].skuId)}],
+          // This stack is fine.
+          [{...availableSkus[0], id: generateUniqueId(availableSkus[0].skuId)}]
+        ] 
+      },
+      'row-2': { 
+        id: 'row-2', capacity: 500, maxHeight: 15, allowedProductTypes: 'all',
+        stacks: [
+          // CONFLICT 2: This stack of two cans (10+10=20) exceeds the row's maxHeight of 15.
+          [
+            {...availableSkus[0], id: generateUniqueId(availableSkus[0].skuId)},
+            {...availableSkus[0], id: generateUniqueId(availableSkus[0].skuId)}
+          ]
+        ]
+      },
+    }
   }
 };
 // ------------------------------------
@@ -87,7 +112,6 @@ export const getInitialLayout = async (): Promise<Refrigerator> => {
   return Promise.resolve(initialLayout);
 };
 
-// NEW FUNCTION to fetch layouts
 export const getAvailableLayouts = async (): Promise<{ [key: string]: { name: string; layout: Refrigerator } }> => {
   return Promise.resolve(availableLayoutsData);
 };

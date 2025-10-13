@@ -23,7 +23,7 @@ export function RefrigeratorComponent({ dropIndicator, dragValidation }: Refrige
       <div className="bg-gray-900/50 p-2 rounded-t-md">
         <h2 className="text-2xl font-bold text-white text-center tracking-wider">PEPSICO</h2>
       </div>
-      <div className="space-y-4 p-2 sm:p-4">
+      <div className="space-y-4 p-2 sm:p-4 items-baseline justify-end">
         {sortedRowIds.map(rowId => (
           <RowComponent 
             key={rowId} 
