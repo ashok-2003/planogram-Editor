@@ -11,12 +11,13 @@ interface RowProps {
   row: RowType;
   dropIndicator: DropIndicator;
   dragValidation: DragValidation;
+  conflictIds: string[];
 }
 
-export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
+export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }: RowProps) {
   const { setNodeRef, isOver } = useDroppable({ id: row.id, data: { type: 'row', items: row.stacks } });
   
-  const stackIds = row.stacks.map(stack => stack[0].id);
+  const stackIds = row.stacks.map(stack => stack[0]?.id).filter(Boolean);
   const showGhost = dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id;
 
   const isDragging = !!dragValidation;
@@ -28,18 +29,16 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
     <motion.div 
       ref={setNodeRef} 
       className={clsx(
-        "p-2 rounded-lg min-h-[150px] relative transition-all duration-300 ease-out",
+        "p-2 rounded-lg relative transition-all duration-300 ease-out",
         {
-          // Normal state
           "bg-gray-700/50 border-2 border-transparent": !isDragging,
-          // Valid target state
           "bg-gray-700/50 border-2 border-green-500/30": isValidRowTarget && !isOver,
-          // Hover state for valid targets
           "bg-green-900/20 border-2 border-green-400 shadow-lg shadow-green-400/10": isValidRowTarget && isOver,
-          // Disabled state
-          "bg-gray-800/60 border-2 border-gray-600/30 opacity-40": isDisabled,
+          "bg-gray-800/60 border-2 border-gray-600/30": isDisabled,
         }
       )}
+      // This style sets the visual width of the shelf based on its data
+      style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       animate={{
         scale: isValidRowTarget && isOver ? 1.01 : 1,
       }}
@@ -49,7 +48,6 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
         transition: { duration: 0.2 }
       }}
     >
-      {/* Subtle grid background */}
       <div className="absolute inset-0 opacity-10">
         <div 
           className="w-full h-full"
@@ -60,7 +58,6 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
         />
       </div>
 
-      {/* Disabled overlay */}
       {isDisabled && (
         <div className="absolute inset-0 bg-red-400/40 rounded-lg flex items-center justify-center">
           <div className="text-red-500 text-sm font-medium bg-gray-800/80 px-3 py-1 rounded-full z-10">
@@ -70,10 +67,11 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
       )}
 
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        <div className="flex items-end gap-1 h-full relative z-10">
+        {/* GRAVITY FIX: The "items-end" class aligns all children (the stacks) to the bottom of this container. */}
+        {/* The "min-h-[140px]" ensures the container has height, creating the shelf effect. */}
+        <div className="flex items-end gap-1 h-full relative z-10 min-h-[140px]">
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
-              {/* Clean drop indicator */}
               <AnimatePresence>
                 {showGhost && dropIndicator.index === index && (
                   <motion.div
@@ -81,7 +79,7 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
                     animate={{ scaleY: 1, opacity: 1 }}
                     exit={{ scaleY: 0, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="w-full self-stretch bg-blue-400 rounded-full relative"
+                    className="w-1 self-stretch bg-blue-400 rounded-full relative"
                   >
                     <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-400 rounded-full" />
                   </motion.div>
@@ -92,11 +90,12 @@ export function RowComponent({ row, dropIndicator, dragValidation }: RowProps) {
                 stack={stack}
                 isStackHighlight={dropIndicator?.type === 'stack' && dropIndicator.targetId === stack[0].id}
                 dragValidation={dragValidation}
+                conflictIds={conflictIds}
+                isParentRowValid={isValidRowTarget}
               />
             </div>
           ))}
           
-          {/* End drop indicator */}
           <AnimatePresence>
             {showGhost && dropIndicator.index === row.stacks.length && (
               <motion.div

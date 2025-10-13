@@ -11,35 +11,9 @@ import { ItemComponent } from './item';
 import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { runValidation, findConflicts } from '@/lib/validation'; // Import the new conflict finder
+import { runValidation, findConflicts } from '@/lib/validation';
 
-// --- UI Component for Layout Switching ---
-interface LayoutSelectorProps {
-  layouts: { [key: string]: { name: string; layout: Refrigerator } };
-  selectedLayout: string;
-  onLayoutChange: (layoutId: string) => void;
-}
-
-function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
-  return (
-    <div className="mb-6 max-w-sm">
-      <label htmlFor="layout-select" className="block text-sm font-medium text-gray-700 mb-1">
-        Refrigerator Model
-      </label>
-      <select
-        id="layout-select"
-        value={selectedLayout}
-        onChange={(e) => onLayoutChange(e.target.value)}
-        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
-      >
-        {Object.keys(layouts).map(layoutId => (
-          <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
+// --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
 // --- UI Component for Mode Switching ---
 interface ModeToggleProps {
@@ -59,8 +33,7 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
         )}
       >
         Re-Order Mode
-      </button>
-      <button
+      </button>      <button
         onClick={() => setMode('stack')}
         className={clsx(
           "px-4 py-2 text-sm font-semibold rounded-md transition-colors w-full text-center",
@@ -130,6 +103,32 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
     </div>
   );
 }
+// ... (LayoutSelector remains the same)
+interface LayoutSelectorProps {
+  layouts: { [key: string]: { name: string; layout: Refrigerator } };
+  selectedLayout: string;
+  onLayoutChange: (layoutId: string) => void;
+}
+
+function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
+  return (
+    <div className="mb-6 max-w-sm">
+      <label htmlFor="layout-select" className="block text-sm font-medium text-gray-700 mb-1">
+        Refrigerator Model
+      </label>
+      <select
+        id="layout-select"
+        value={selectedLayout}
+        onChange={(e) => onLayoutChange(e.target.value)}
+        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+      >
+        {Object.keys(layouts).map(layoutId => (
+          <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 
 export type DropIndicator = {
@@ -160,11 +159,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
 
-  // --- NEW STATE FOR RULE MANAGEMENT ---
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
-  // ------------------------------------
-
+  
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('default');
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -174,8 +171,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  // This effect runs whenever the refrigerator layout changes.
-  // It checks for conflicts and updates the state.
   useEffect(() => {
     if (refrigerator && Object.keys(refrigerator).length > 0) {
       const conflicts = findConflicts(refrigerator);
@@ -232,7 +227,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         activeDragId: active.id as string,
         refrigerator,
         findStackLocation,
-        isRulesEnabled, // Pass the toggle state to the validator
+        isRulesEnabled,
       });
       setDragValidation(validationResult);
     }
@@ -282,47 +277,47 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     const activeType = active.data.current?.type;
+
     if (activeType === 'sku') {
-        if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
-            if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-                actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
-                setInvalidModeAttempts(0);
-            }
+      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
+        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+          actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index);
+          setInvalidModeAttempts(0);
         }
-    }
-    else if (interactionMode === 'stack') {
-        if (dropIndicator?.type === 'stack') {
-            actions.stackItem(active.id as string, dropIndicator.targetId);
-            setInvalidModeAttempts(0);
-        } else if (over) {
-            const newAttemptCount = invalidModeAttempts + 1;
-            setInvalidModeAttempts(newAttemptCount);
-            if (newAttemptCount >= 2) {
-                setShowModePrompt(true);
-            }
+      }
+    } else if (interactionMode === 'stack') {
+      if (dropIndicator?.type === 'stack') {
+        actions.stackItem(active.id as string, dropIndicator.targetId);
+        setInvalidModeAttempts(0);
+      } else if (over) {
+        const newAttemptCount = invalidModeAttempts + 1;
+        setInvalidModeAttempts(newAttemptCount);
+        if (newAttemptCount >= 2) {
+          setShowModePrompt(true);
         }
-    }
-    else if (interactionMode === 'reorder') {
-        if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
-            if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-                const startLocation = findStackLocation(active.id as string);
-                if (!startLocation || dropIndicator.index === undefined) return;
-                if (startLocation.rowId === dropIndicator.targetRowId) {
-                    actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
-                } else {
-                    actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
-                }
-                setInvalidModeAttempts(0);
-            }
+      }
+    } else if (interactionMode === 'reorder') {
+      if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
+        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+          const startLocation = findStackLocation(active.id as string);
+          if (!startLocation || dropIndicator.index === undefined) return;
+          if (startLocation.rowId === dropIndicator.targetRowId) {
+            actions.reorderStack(startLocation.rowId, startLocation.stackIndex, dropIndicator.index);
+          } else {
+            actions.moveItem(active.id as string, dropIndicator.targetRowId, dropIndicator.index);
+          }
+          setInvalidModeAttempts(0);
         }
+      }
     }
+
     setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
-}
+  }
   
   if (!hasMounted) {
-    return null; // or a loading skeleton
+    return null;
   }
 
   return (
@@ -338,7 +333,8 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <SkuPalette skus={initialSkus} />
             <RefrigeratorComponent 
               dragValidation={dragValidation} 
-              dropIndicator={dropIndicator} 
+              dropIndicator={dropIndicator}
+              conflictIds={isRulesEnabled ? conflictIds : []}
             />
           </div>
           <div>

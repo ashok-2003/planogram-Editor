@@ -5,10 +5,11 @@ import { DropIndicator, DragValidation } from './planogramEditor';
 
 interface RefrigeratorComponentProps {
   dropIndicator: DropIndicator;
-  dragValidation: DragValidation; // New prop
+  dragValidation: DragValidation;
+  conflictIds: string[]; // Add the missing prop
 }
 
-export function RefrigeratorComponent({ dropIndicator, dragValidation }: RefrigeratorComponentProps) {
+export function RefrigeratorComponent({ dropIndicator, dragValidation, conflictIds }: RefrigeratorComponentProps) {
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
   const sortedRowIds = Object.keys(refrigerator).sort();
 
@@ -23,13 +24,14 @@ export function RefrigeratorComponent({ dropIndicator, dragValidation }: Refrige
       <div className="bg-gray-900/50 p-2 rounded-t-md">
         <h2 className="text-2xl font-bold text-white text-center tracking-wider">PEPSICO</h2>
       </div>
-      <div className="space-y-4 p-2 sm:p-4 items-baseline justify-end">
+      <div className="space-y-4 p-2 sm:p-4 flex flex-col items-center">
         {sortedRowIds.map(rowId => (
           <RowComponent 
             key={rowId} 
             row={refrigerator[rowId]} 
             dropIndicator={dropIndicator} 
-            dragValidation={dragValidation} // Pass it down
+            dragValidation={dragValidation}
+            conflictIds={conflictIds} // Pass the prop down
           />
         ))}
       </div>

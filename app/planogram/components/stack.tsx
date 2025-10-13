@@ -11,9 +11,11 @@ interface StackProps {
   stack: ItemType[];
   isStackHighlight: boolean;
   dragValidation: DragValidation;
+  isParentRowValid: boolean; // Add missing prop
+  conflictIds: string[]; 
 }
 
-export function StackComponent({ stack, isStackHighlight, dragValidation }: StackProps) {
+export function StackComponent({ stack, isStackHighlight, dragValidation, isParentRowValid, conflictIds }: StackProps) {
   const firstItem = stack[0];
   if (!firstItem) return null;
 
@@ -29,7 +31,14 @@ export function StackComponent({ stack, isStackHighlight, dragValidation }: Stac
     zIndex: isDragging ? 100 : 'auto',
   };
 
-  const isValidStackTarget = dragValidation?.validStackTargetIds.has(firstItem.id);
+  const hasConflict = stack.some(item => conflictIds.includes(item.id));
+  const isDraggingGlobal = !!dragValidation;
+  const isValidStackTarget = isDraggingGlobal && dragValidation.validStackTargetIds.has(firstItem.id);
+
+  // A stack is visually disabled if a drag is happening AND:
+  // 1. Its parent row is invalid for re-ordering, AND
+  // 2. It is NOT a valid target for stacking.
+  const isVisuallyDisabled = isDraggingGlobal && !isParentRowValid && !isValidStackTarget;
 
   return (
     <motion.div
@@ -38,28 +47,12 @@ export function StackComponent({ stack, isStackHighlight, dragValidation }: Stac
       {...attributes}
       {...listeners}
       layout="position"
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ 
-        scale: 1, 
-        opacity: 1,
-        rotateY: isDragging ? 5 : 0,
-      }}
-      whileHover={{ 
-        scale: 1.02,
-        rotateX: -2,
-        transition: { duration: 0.2 }
-      }}
-      whileTap={{ 
-        scale: 0.98,
-        rotateX: 2,
-        transition: { duration: 0.1 }
-      }}
-      className={clsx("flex flex-col-reverse items-center relative transition-all duration-300", {
-        "outline outline-4 outline-offset-2 outline-blue-500 rounded-md z-10": isStackHighlight,
-        "opacity-100": isValidStackTarget,
-      })}
+      className={clsx(
+        "flex flex-col-reverse items-center relative transition-all duration-300",
+        { "opacity-40": isVisuallyDisabled && !isStackHighlight }
+      )}
     >
-      {/* Glow effect for valid drop targets */}
+      {/* Glow effect for stacking */}
       <AnimatePresence>
         {isStackHighlight && (
           <motion.div
@@ -72,30 +65,43 @@ export function StackComponent({ stack, isStackHighlight, dragValidation }: Stac
         )}
       </AnimatePresence>
 
-      {/* Stack items with staggered animations */}
-      <AnimatePresence mode="popLayout">
-        {stack.map((item, index) => (
+      {/* Conflict Indicator */}
+      <AnimatePresence>
+        {hasConflict && !isDragging && (
           <motion.div
-            key={item.id}
-            initial={{ y: 20, opacity: 0, scale: 0.9 }}
-            animate={{ 
-              y: 0, 
-              opacity: 1, 
-              scale: 1,
-              transition: { delay: index * 0.05 }
-            }}
-            exit={{ 
-              y: -20, 
-              opacity: 0, 
-              scale: 0.9,
-              transition: { duration: 0.2 }
-            }}
-            whileHover={{ z: 10 }}
-          >
-            <ItemComponent item={item} />
-          </motion.div>
-        ))}
+            className="absolute -inset-1.5 rounded-lg ring-2 ring-red-500 ring-offset-2 ring-offset-gray-800 pointer-events-none"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+          />
+        )}
       </AnimatePresence>
+
+      <div className={clsx({ 'opacity-50': hasConflict && !isDragging })}>
+        <AnimatePresence mode="popLayout">
+          {stack.map((item, index) => (
+            <motion.div
+              key={item.id}
+              initial={{ y: 20, opacity: 0, scale: 0.9 }}
+              animate={{ 
+                y: 0, 
+                opacity: 1, 
+                scale: 1,
+                transition: { delay: index * 0.05 }
+              }}
+              exit={{ 
+                y: -20, 
+                opacity: 0, 
+                scale: 0.9,
+                transition: { duration: 0.2 }
+              }}
+              whileHover={{ z: 10 }}
+            >
+              <ItemComponent item={item} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
