@@ -51,7 +51,7 @@ export const availableLayoutsData = {
         ] 
       },
       'row-2': { 
-        id: 'row-2', capacity: 500, maxHeight: 15, allowedProductTypes: 'all',
+        id: 'row-2', capacity: 500, maxHeight: 15, allowedProductTypes: 'all' as const,
         stacks: [
           // CONFLICT 2: This stack of two cans (10+10=20) exceeds the row's maxHeight of 15.
           [
