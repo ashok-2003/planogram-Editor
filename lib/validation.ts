@@ -23,17 +23,16 @@ export function findConflicts(refrigerator: Refrigerator): string[] {
   for (const rowId in refrigerator) {
     const row = refrigerator[rowId];
     for (const stack of row.stacks) {
-      // 1. Check for Height Conflicts within the stack
       const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
       if (stackHeight > row.maxHeight) {
-        // Mark all items in the oversized stack as conflicts
         stack.forEach(item => conflictIds.push(item.id));
       }
 
-      // 2. Check for Placement Conflicts for each item in the stack
       for (const item of stack) {
+        // A "BLANK" item can never be in conflict with placement rules.
+        if (item.productType === 'BLANK') continue;
+        
         if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(item.productType)) {
-          // Mark this specific misplaced item as a conflict
           if (!conflictIds.includes(item.id)) {
             conflictIds.push(item.id);
           }
@@ -69,24 +68,21 @@ export function runValidation({
   for (const rowId in refrigerator) {
     const row = refrigerator[rowId];
     
-    // --- Business Rules Engine (UPDATED) ---
-
-    // Rule 1: Placement Restriction (Business Rule)
-    // This is now the ONLY rule affected by the toggle.
     if (isRulesEnabled) {
-      const isRowAllowedByPlacement = row.allowedProductTypes === 'all' || row.allowedProductTypes.includes(draggedItem.productType);
+      // UPDATED RULE: A 'BLANK' product type is always allowed.
+      const isRowAllowedByPlacement = row.allowedProductTypes === 'all' 
+        || draggedItem.productType === 'BLANK' 
+        || row.allowedProductTypes.includes(draggedItem.productType);
+        
       if (!isRowAllowedByPlacement) continue;
     }
 
-    // Rule 2: Height Restriction (Physical Rule - ALWAYS ON)
     if (draggedEntityHeight > row.maxHeight) continue;
 
-    // Rule 3: Width Restriction (Physical Rule - ALWAYS ON)
     const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
     const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
     if (widthWithoutActiveItem + draggedItemWidth > row.capacity) continue;
     
-    // If all necessary physical (and optionally business) rules pass, the row is valid.
     validRowIds.add(rowId);
   }
 
@@ -95,13 +91,15 @@ export function runValidation({
     for (const rowId in refrigerator) {
       const row = refrigerator[rowId];
 
-      // Rule 1: Placement Restriction (Business Rule)
       if (isRulesEnabled) {
-        const isRowAllowedByPlacement = row.allowedProductTypes === 'all' || row.allowedProductTypes.includes(draggedItem.productType);
+        // UPDATED RULE: A 'BLANK' product type is always allowed.
+        const isRowAllowedByPlacement = row.allowedProductTypes === 'all' 
+          || draggedItem.productType === 'BLANK'
+          || row.allowedProductTypes.includes(draggedItem.productType);
+
         if (!isRowAllowedByPlacement) continue;
       }
 
-      // Rule 2: Height Restriction (Physical Rule - ALWAYS ON)
       if (draggedItem.height > row.maxHeight) continue;
 
       for (const stack of row.stacks) {
@@ -110,7 +108,6 @@ export function runValidation({
         if (stackId === activeDragId) continue;
 
         const targetStackHeight = stack.reduce((sum, item) => sum + item.height, 0);
-        // Stacking height check is a physical rule and is ALWAYS ON.
         if (targetStackHeight + draggedItem.height <= row.maxHeight) {
           validStackTargetIds.add(stackId);
         }
