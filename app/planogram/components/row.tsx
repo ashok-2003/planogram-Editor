@@ -27,7 +27,9 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
 
   return (
     <motion.div 
-      ref={setNodeRef} 
+      ref={setNodeRef}
+      // This style sets the visual width of the shelf based on its data
+      style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
         "p-2 rounded-lg relative transition-all duration-300 ease-out",
         {
@@ -37,8 +39,6 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
           "bg-gray-800/60 border-2 border-gray-600/30": isDisabled,
         }
       )}
-      // This style sets the visual width of the shelf based on its data
-      style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       animate={{
         scale: isValidRowTarget && isOver ? 1.01 : 1,
       }}
@@ -114,3 +114,4 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
     </motion.div>
   );
 }
+
