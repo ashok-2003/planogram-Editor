@@ -28,7 +28,6 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
   return (
     <motion.div 
       ref={setNodeRef}
-      // This style sets the visual width of the shelf based on its data
       style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
         "p-2 rounded-lg relative transition-all duration-300 ease-out",
@@ -67,9 +66,8 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
       )}
 
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        {/* GRAVITY FIX: The "items-end" class aligns all children (the stacks) to the bottom of this container. */}
-        {/* The "min-h-[140px]" ensures the container has height, creating the shelf effect. */}
-        <div className="flex items-end gap-1 h-full relative z-10 min-h-[140px]">
+        {/* UPDATED: 'gap-px' for tighter spacing and dynamic min-height for realism */}
+        <div className="flex items-end gap-px h-full relative z-10" style={{ minHeight: `${row.maxHeight * 5}px`}}>
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
               <AnimatePresence>
@@ -114,4 +112,3 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
     </motion.div>
   );
 }
-
