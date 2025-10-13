@@ -23,7 +23,7 @@ function DraggableSku({ sku }: { sku: Sku }) {
 
 export function SkuPalette({ skus }: SkuPaletteProps) {
   return (
-    <aside className="p-4 bg-gray-100 rounded-lg shadow-md w-full md:w-56 flex-shrink-0 flex flex-col">
+    <aside className=" max-h-screen overflow-auto-y-auto p-4 bg-gray-100 rounded-lg shadow-md w-full md:w-56 flex-shrink-0 flex flex-col">
       <h2 className="text-lg font-bold text-gray-800 border-b pb-2">Products</h2>
       {/* This div is now scrollable */}
       <div className="mt-4 space-y-4 flex-grow overflow-y-auto pr-2">
