@@ -68,7 +68,7 @@ export function ItemComponent({ item }: ItemProps) {
       <motion.img 
         src={item.imageUrl} 
         alt={item.name} 
-        className="object-contain w-full h-full pointer-events-none relative z-10"
+        className="object-cover w-full h-full pointer-events-none relative z-10"
         onDragStart={(e) => e.preventDefault()}
         whileHover={{ 
           filter: "brightness(1.1) contrast(1.05)",

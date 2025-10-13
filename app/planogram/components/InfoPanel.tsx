@@ -83,8 +83,8 @@ export function InfoPanel({ availableSkus }: InfoPanelProps) {
             transition={{ duration: 0.2 }}
           >
             <h2 className="text-xl font-bold text-gray-800">Properties</h2>
-            <div className="mt-4">
-              <img src={selectedItem.imageUrl} alt={selectedItem.name} className="rounded-md border border-gray-200 object-contain mx-auto" />
+            <div className="items-center mt-4 max-h-16 max-w-16">
+              <img src={selectedItem.imageUrl} alt={selectedItem.name} className="rounded-md border border-gray-200 object-contain max-h-16" />
             </div>
             <div className="mt-4 space-y-2">
               <div>
