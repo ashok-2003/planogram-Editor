@@ -15,16 +15,12 @@ export function RefrigeratorComponent({ dropIndicator, dragValidation, conflictI
 
   return (
     <div 
-      className="bg-gray-800 p-4 rounded-lg shadow-inner flex-grow"
-      style={{ 
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
-        backgroundSize: '20px 20px'
-      }}
+      // Updated for a more realistic dark interior
+      className="bg-gray-900 p-4 rounded-lg shadow-inner flex-grow border border-red-500 h-fit w-fit"
     >
-      <div className="bg-gray-900/50 p-2 rounded-t-md">
+      <div className="bg-black/20 p-2 rounded-t-md mb-4">
         <h2 className="text-2xl font-bold text-white text-center tracking-wider">PEPSICO</h2>
       </div>
-      {/* This container now centers the shelves (rows) horizontally */}
       <div className="space-y-4 p-2 sm:p-4 flex flex-col items-center">
         {sortedRowIds.map(rowId => (
           <RowComponent 

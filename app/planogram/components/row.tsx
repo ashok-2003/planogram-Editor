@@ -67,7 +67,7 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
 
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
         {/* UPDATED: 'gap-px' for tighter spacing and dynamic min-height for realism */}
-        <div className="flex items-end gap-px h-full relative z-10" style={{ minHeight: `${row.maxHeight * 5}px`}}>
+        <div className="flex gap-0 items-end h-full relative z-10" style={{ minHeight: `${row.maxHeight * 5}px`}}>
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
               <AnimatePresence>
