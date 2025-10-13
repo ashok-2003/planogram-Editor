@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { Sku, Refrigerator, Item } from '@/lib/types';
+import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
 import { InfoPanel } from './InfoPanel';
@@ -146,7 +146,7 @@ export type DragValidation = {
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
-  initialLayouts: { [key: string]: { name: string; layout: Refrigerator } };
+  initialLayouts: { [key: string]: LayoutData }; // Update to use LayoutData
 }
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
@@ -162,12 +162,19 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('default');
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
+    usePlanogramStore.setState({ refrigerator: initialLayout });
     setHasMounted(true);
-  }, []);
+  }, [initialLayout]);
+
+  useEffect(() => {
+    if (hasMounted && initialLayouts[selectedLayoutId]) {
+      usePlanogramStore.setState({ refrigerator: initialLayouts[selectedLayoutId].layout });
+    }
+  }, [selectedLayoutId, initialLayouts, hasMounted]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 

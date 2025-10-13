@@ -1,4 +1,4 @@
-import { Sku, Refrigerator } from './types';
+import { Sku, Refrigerator, LayoutData } from './types'; // Add LayoutData import
 import { demoSkus } from './demo-sku';
 import { PIXELS_PER_MM } from './config';
 
@@ -8,7 +8,7 @@ const generateUniqueId = (skuId: string) => `${skuId}-${Date.now()}-${Math.rando
 export const availableSkus : Sku[]= demoSkus;
 
 // --- DIMENSIONALLY-ACCURATE REFRIGERATOR LAYOUTS ---
-export const availableLayoutsData = {
+export const availableLayoutsData: { [key: string]: LayoutData } = { // Explicitly type it
   'g-26c': { 
     name: 'G-26c Upright Cooler',
     width: Math.round(700 * PIXELS_PER_MM),
@@ -29,7 +29,7 @@ export const availableLayoutsData = {
       'row-1': { id: 'row-1', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(300 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
       'row-2': { id: 'row-2', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(340 * PIXELS_PER_MM), allowedProductTypes: ['PET_SMALL', 'RGB'], stacks: [] },
       'row-3': { id: 'row-3', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(340 * PIXELS_PER_MM), allowedProductTypes: ['PET_LARGE'], stacks: [] },
-      'row-4': { id: 'row-4', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(450 * PIXELS_PER_MM), allowedProductTypes: 'all', stacks: [] },
+      'row-4': { id: 'row-4', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(450 * PIXELS_PER_MM), allowedProductTypes: 'all', stacks: [] }, // This is fine as 'all' is allowed
       'row-5': { id: 'row-5', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(500 * PIXELS_PER_MM), allowedProductTypes: 'all', stacks: [] },
     }
   },
@@ -48,6 +48,6 @@ export const getInitialLayout = async (): Promise<Refrigerator> => {
 
 // We rename the exported data to avoid conflicts
 export const layouts = availableLayoutsData;
-export const getAvailableLayouts = async (): Promise<typeof layouts> => {
+export const getAvailableLayouts = async (): Promise<{ [key: string]: LayoutData }> => { // Update return type
   return Promise.resolve(layouts);
 };

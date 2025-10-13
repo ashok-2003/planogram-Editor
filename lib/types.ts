@@ -58,3 +58,13 @@ export interface Sku {
   productType: string; // NEW: e.g., 'PET', 'SSS', 'TETRA'
   constraints: ItemConstraints;
 }
+
+/**
+ * Represents a complete layout definition, including dimensions and the refrigerator structure.
+ */
+export interface LayoutData {
+  name: string;
+  width: number;
+  height: number;
+  layout: Refrigerator;
+}
