@@ -1,4 +1,3 @@
-// app/planogram/_components/Item.tsx
 'use client';
 import { usePlanogramStore } from '@/lib/store';
 import { Item } from '@/lib/types';
@@ -22,7 +21,7 @@ export function ItemComponent({ item }: ItemProps) {
   return (
     <motion.div
       onClick={handleSelect}
-      style={{ width: `${item.width}px`, height: `${item.height * 5}px` }}
+      style={{ width: `${item.width}px`, height: `${item.height}px` }}
       className={clsx(
         'flex items-center justify-center cursor-pointer relative',
         {

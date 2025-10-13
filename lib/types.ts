@@ -50,6 +50,8 @@ export interface Refrigerator {
 export interface Sku {
   skuId: string;
   name: string;
+  widthMM:number;
+  heightMM:number;
   width: number;
   height: number;
   imageUrl: string;

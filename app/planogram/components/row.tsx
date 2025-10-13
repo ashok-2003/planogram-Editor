@@ -30,44 +30,33 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
       ref={setNodeRef}
       style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
-        "p-2 rounded-lg relative transition-all duration-300 ease-out",
+        "p-2 rounded-md relative transition-all duration-300 ease-out w-full shadow-lg",
+        "bg-gradient-to-b from-gray-700 via-gray-800 to-gray-800 border-t-2 border-b border-black/20",
         {
-          "bg-gray-700/50 border-2 border-transparent": !isDragging,
-          "bg-gray-700/50 border-2 border-green-500/30": isValidRowTarget && !isOver,
-          "bg-green-900/20 border-2 border-green-400 shadow-lg shadow-green-400/10": isValidRowTarget && isOver,
-          "bg-gray-800/60 border-2 border-gray-600/30": isDisabled,
+          "border-gray-600": !isDragging,
+          "ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500": isValidRowTarget,
+          "opacity-40": isDisabled,
         }
       )}
       animate={{
         scale: isValidRowTarget && isOver ? 1.01 : 1,
+        boxShadow: isValidRowTarget && isOver ? "0 0 20px rgba(34, 197, 94, 0.4)" : "0 10px 15px -3px rgba(0,0,0,0.3)",
       }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      whileHover={{
-        scale: !isDragging ? 1.005 : undefined,
-        transition: { duration: 0.2 }
-      }}
     >
-      <div className="absolute inset-0 opacity-10">
-        <div 
-          className="w-full h-full"
-          style={{ 
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-        />
-      </div>
+      <div className="absolute inset-0 opacity-[0.02] bg-[url(https://www.transparenttextures.com/patterns/subtle-carbon.png)]" />
 
       {isDisabled && (
-        <div className="absolute inset-0 bg-red-400/40 rounded-lg flex items-center justify-center">
-          <div className="text-red-500 text-sm font-medium bg-gray-800/80 px-3 py-1 rounded-full z-10">
+        <div className="absolute inset-0 bg-red-800/40 rounded-lg flex items-center justify-center z-20">
+          <div className="text-red-200 text-sm font-medium bg-red-900/80 px-3 py-1 rounded-full">
             Cannot drop here
           </div>
         </div>
       )}
 
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        {/* UPDATED: 'gap-px' for tighter spacing and dynamic min-height for realism */}
-        <div className="flex gap-0 items-end h-full relative z-10" style={{ minHeight: `${row.maxHeight * 5}px`}}>
+        {/* UPDATED: The minHeight is now set dynamically from the row's data for realism */}
+        <div className="flex items-end gap-px h-full relative z-10" style={{ minHeight: `${row.maxHeight}px`}}>
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
               <AnimatePresence>

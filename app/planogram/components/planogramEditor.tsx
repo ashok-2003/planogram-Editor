@@ -335,6 +335,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               dragValidation={dragValidation} 
               dropIndicator={dropIndicator}
               conflictIds={isRulesEnabled ? conflictIds : []}
+              selectedLayoutId={selectedLayoutId}
             />
           </div>
           <div>
