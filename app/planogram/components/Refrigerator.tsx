@@ -27,24 +27,25 @@ export function RefrigeratorComponent({ dropIndicator, dragValidation, conflictI
   }, [selectedLayoutId]);
 
   return (
-    <div 
-      className="bg-white p-4 rounded-lg shadow-inner border border-gray-700/50 flex flex-col"
-      // Apply the dynamic dimensions here
-      style={{ 
-        width: `${dimensions.width}px`,
-        height: `${dimensions.height}px`
-      }}
+    <div
+      className="bg-black/20 p-4 rounded-lg shadow-inner border border-gray-700/50 flex flex-col"
     >
-      <div className="bg-black/20 p-2 rounded-t-md mb-4 flex-shrink-0">
-        <h2 className="text-2xl font-bold text-white text-center tracking-wider">PEPSICO</h2>
+      <div className="bg-blue-600/60 p-2 rounded-t-md mb-4 flex-shrink-0">
+        <h2 className="text-2xl font-bold text-black text-center tracking-wider">PEPSICO</h2>
       </div>
       {/* This container now grows to fill the remaining space */}
-      <div className="space-y-4 p-2 sm:p-4 flex flex-col items-center flex-grow bg-white">
+      <div className="space-y-0 flex flex-col items-center bg-white"
+        // Apply the dynamic dimensions here
+        style={{
+          width: `${dimensions.width}px`,
+          height: `${dimensions.height}px`
+        }}
+      >
         {sortedRowIds.map(rowId => (
-          <RowComponent 
-            key={rowId} 
-            row={refrigerator[rowId]} 
-            dropIndicator={dropIndicator} 
+          <RowComponent
+            key={rowId}
+            row={refrigerator[rowId]}
+            dropIndicator={dropIndicator}
             dragValidation={dragValidation}
             conflictIds={conflictIds}
           />

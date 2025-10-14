@@ -30,8 +30,8 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
       ref={setNodeRef}
       style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
-        "p-2 rounded-md relative transition-all duration-300 ease-out w-full shadow-lg",
-        "bg-gradient-to-b from-gray-700 via-gray-800 to-gray-800 border-t-2 border-b border-black/20",
+        "relative transition-all duration-300 ease-out w-full shadow-lg",
+        "bg-gradient-to-b from-gray-700/10 via-gray-800/20 to-gray-800/20 border",
         {
           "border-gray-600": !isDragging,
           "ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500": isValidRowTarget,

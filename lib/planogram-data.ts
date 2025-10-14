@@ -11,26 +11,23 @@ export const availableSkus : Sku[]= demoSkus;
 export const availableLayoutsData: { [key: string]: LayoutData } = { // Explicitly type it
   'g-26c': { 
     name: 'G-26c Upright Cooler',
-    width: Math.round(700 * PIXELS_PER_MM),
-    height: Math.round(2200 * PIXELS_PER_MM),
+    width: Math.round(673 * PIXELS_PER_MM),
+    height: Math.round((1308+20) * PIXELS_PER_MM),
     layout: {
-      'row-1': { id: 'row-1', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(200 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
-      'row-2': { id: 'row-2', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(250 * PIXELS_PER_MM), allowedProductTypes: ['SSS', 'PET_SMALL'], stacks: [] },
-      'row-3': { id: 'row-3', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(250 * PIXELS_PER_MM), allowedProductTypes: ['LSS'], stacks: [] },
-      'row-4': { id: 'row-4', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(300 * PIXELS_PER_MM), allowedProductTypes: ['SMS', 'PET_LARGE'], stacks: [] },
-      'row-5': { id: 'row-5', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(350 * PIXELS_PER_MM), allowedProductTypes: ['LMS', 'PET_LARGE'], stacks: [] },
+      'row-1': { id: 'row-1', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
+      'row-2': { id: 'row-2', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SSS', 'PET_SMALL'], stacks: [] },
+      'row-3': { id: 'row-3', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['LSS'], stacks: [] },
+      'row-4': { id: 'row-4', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SMS', 'PET_LARGE'], stacks: [] },
     }
   },
-  'g-49c': { 
-    name: 'G-49c Double Door Cooler',
-    width: Math.round(1300 * PIXELS_PER_MM),
-    height: Math.round(2600 * PIXELS_PER_MM),
+  'g-10f': { 
+    name: 'g-10f upright Cooler',
+    width: Math.round(542 * PIXELS_PER_MM),
+    height: Math.round((1041+20) * PIXELS_PER_MM),
     layout: {
-      'row-1': { id: 'row-1', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(300 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
-      'row-2': { id: 'row-2', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(340 * PIXELS_PER_MM), allowedProductTypes: ['PET_SMALL', 'RGB'], stacks: [] },
-      'row-3': { id: 'row-3', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(340 * PIXELS_PER_MM), allowedProductTypes: ['PET_LARGE'], stacks: [] },
-      'row-4': { id: 'row-4', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(450 * PIXELS_PER_MM), allowedProductTypes: 'all', stacks: [] }, // This is fine as 'all' is allowed
-      'row-5': { id: 'row-5', capacity: Math.round(1263 * PIXELS_PER_MM), maxHeight: Math.round(500 * PIXELS_PER_MM), allowedProductTypes: 'all', stacks: [] },
+      'row-1': { id: 'row-1', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(347 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
+      'row-2': { id: 'row-2', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(347 * PIXELS_PER_MM), allowedProductTypes: ['PET_SMALL', 'RGB'], stacks: [] },
+      'row-3': { id: 'row-3', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(347 * PIXELS_PER_MM), allowedProductTypes: ['PET_LARGE'], stacks: [] },
     }
   },
 };
