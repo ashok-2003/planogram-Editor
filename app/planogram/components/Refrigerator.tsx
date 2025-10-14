@@ -28,7 +28,7 @@ export function RefrigeratorComponent({ dropIndicator, dragValidation, conflictI
 
   return (
     <div
-      className="bg-black/20 p-4 rounded-lg shadow-inner border border-gray-700/50 flex flex-col"
+      className="bg-blue-200 p-4 rounded-lg shadow-inner border border-gray-700/50 flex flex-col h-fit"
     >
       <div className="bg-blue-600/60 p-2 rounded-t-md mb-4 flex-shrink-0">
         <h2 className="text-2xl font-bold text-black text-center tracking-wider">PEPSICO</h2>
