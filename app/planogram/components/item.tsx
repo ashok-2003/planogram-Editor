@@ -26,7 +26,7 @@ export function ItemComponent({ item }: ItemProps) {
         'flex items-center justify-center cursor-pointer relative',
         {
           'ring-4 ring-blue-500 ring-offset-2 ring-offset-gray-800 rounded-md': isSelected,
-          'opacity-75 hover:opacity-100': !isSelected,
+          'opacity-90 hover:opacity-100': !isSelected,
         }
       )}
       whileHover={{ 
