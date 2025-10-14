@@ -120,7 +120,7 @@ function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelec
         id="layout-select"
         value={selectedLayout}
         onChange={(e) => onLayoutChange(e.target.value)}
-        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+        className="mt-1 block w-full pl-3 pr-10 py-2 text-black border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
       >
         {Object.keys(layouts).map(layoutId => (
           <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
@@ -328,15 +328,15 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   }
 
   return (
-    <>
-      <div className="flex justify-between items-start">
+    <div className=''>
+      <div className="flex justify-between items-start text-black">
         <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
         <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
       </div>
       <ModeToggle mode={interactionMode} setMode={handleModeChange} />
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
-          <div className="flex flex-col md:flex-row gap-8">
+          <div className="flex flex-col md:flex-row gap-8 max-h-screen">
             <SkuPalette skus={initialSkus} />
             <RefrigeratorComponent 
               dragValidation={dragValidation} 
@@ -347,6 +347,8 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           </div>
           <div>
             <InfoPanel availableSkus={initialSkus} />
+          </div>
+          <div className='flex justify-end items-baseline-last'>
             <StatePreview />
           </div>
         </div>
@@ -375,6 +377,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
