@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
 import { SkuPalette } from './SkuPalette';
@@ -325,23 +325,29 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       return () => clearTimeout(timer);
     }
   }, [refrigerator, hasMounted, initialLayoutLoaded, selectedLayoutId]);
-
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
+  // Memoize expensive conflict detection computation
   useEffect(() => {
-    if (refrigerator && Object.keys(refrigerator).length > 0) {
+    if (refrigerator && Object.keys(refrigerator).length > 0 && isRulesEnabled) {
       const conflicts = findConflicts(refrigerator);
       setConflictIds(conflicts);
+    } else if (!isRulesEnabled) {
+      setConflictIds([]);
     }
-  }, [refrigerator]);
-  function handleLayoutChange(layoutId: string) {
+  }, [refrigerator, isRulesEnabled]);
+  
+  // Memoize event handlers to prevent recreation on every render
+  const handleLayoutChange = useCallback((layoutId: string) => {
     setSelectedLayoutId(layoutId);
     const newLayout = initialLayouts[layoutId]?.layout;
     if (newLayout) {
       actions.selectItem(null);
       usePlanogramStore.setState({ refrigerator: newLayout });
     }
-  }  function handleRestoreDraft() {
+  }, [initialLayouts, actions]);
+
+  const handleRestoreDraft = useCallback(() => {
     const savedDraft = loadPlanogramDraft(selectedLayoutId);
     
     if (savedDraft) {
@@ -359,15 +365,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       toast.success('Draft restored successfully!');
       setShowRestorePrompt(false);
       setLastSaveTime(new Date());
-    } else {
-      toast.error('Failed to restore draft - no saved data found');
+    } else {      toast.error('Failed to restore draft - no saved data found');
     }
-  }
-  function handleDismissDraft() {
+  }, [selectedLayoutId]);
+
+  const handleDismissDraft = useCallback(() => {
     clearPlanogramDraft();
     setShowRestorePrompt(false);
     toast.success('Draft dismissed');
-  }  function handleManualSave() {
+  }, []);
+
+  const handleManualSave = useCallback(() => {
     setIsSaving(true);
     
     // Simulate async save operation (in real app, this would be an API call)
@@ -377,15 +385,15 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       setIsSaving(false);
       toast.success('Planogram saved!');
     }, 800); // 800ms simulated delay for realistic feel
-  }
+  }, [refrigerator, selectedLayoutId]);
 
-  function handleModeChange(newMode: 'reorder' | 'stack') {
+  const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
-  }
+  }, []);
 
-  function handleDragStart(event: DragStartEvent) {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setShowModePrompt(false);
     actions.selectItem(null);
     const { active } = event;
@@ -420,12 +428,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         refrigerator,
         findStackLocation,
         isRulesEnabled,
-      });
-      setDragValidation(validationResult);
+      });      setDragValidation(validationResult);
     }
-  }
+  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
   
-  function handleDragOver(event: DragOverEvent) {
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) { setDropIndicator(null); return; }
 
@@ -464,9 +471,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     }
     
     setDropIndicator(null);
-  }
+  }, [interactionMode, findStackLocation, dragValidation]);
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     const activeType = active.data.current?.type;
 
@@ -500,11 +507,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           }
           setInvalidModeAttempts(0);
         }
-      }
-    }    setActiveItem(null);
+      }    }    setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
-  }
+  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
   
   // Show skeleton loader while mounting and loading
   if (!hasMounted || isLoading) {

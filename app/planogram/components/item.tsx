@@ -1,4 +1,5 @@
 'use client';
+import React, { useCallback, useMemo } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { Item } from '@/lib/types';
 import clsx from 'clsx';
@@ -8,15 +9,15 @@ interface ItemProps {
   item: Item;
 }
 
-export function ItemComponent({ item }: ItemProps) {
+export const ItemComponent = React.memo(function ItemComponent({ item }: ItemProps) {
   const selectedItemId = usePlanogramStore((state) => state.selectedItemId);
   const selectItem = usePlanogramStore((state) => state.actions.selectItem);
   
-  const isSelected = selectedItemId === item.id;
+  const isSelected = useMemo(() => selectedItemId === item.id, [selectedItemId, item.id]);
 
-  const handleSelect = () => {
+  const handleSelect = useCallback(() => {
     selectItem(isSelected ? null : item.id);
-  };
+  }, [selectItem, isSelected, item.id]);
 
   return (
     <motion.div
@@ -73,8 +74,14 @@ export function ItemComponent({ item }: ItemProps) {
         whileHover={{ 
           filter: "brightness(1.1) contrast(1.05)",
           transition: { duration: 0.2 }
-        }}
-      />
+        }}      />
     </motion.div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison for optimal performance
+  // Only re-render if item properties actually changed
+  return prevProps.item.id === nextProps.item.id &&
+         prevProps.item.imageUrl === nextProps.item.imageUrl &&
+         prevProps.item.width === nextProps.item.width &&
+         prevProps.item.height === nextProps.item.height;
+});
