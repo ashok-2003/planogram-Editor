@@ -4,6 +4,7 @@
 1. ✅ **Toast Notifications** - Replaced all alerts with react-hot-toast
 2. ✅ **Undo/Redo System** - Full history with keyboard shortcuts (Ctrl+Z, Ctrl+Y)
 3. ⚠️ **localStorage Persistence** - Auto-save + manual save (90% done, restore needs fix)
+4. ✅ **Search/Filter in SKU Palette** - Real-time search, category filter, keyboard shortcuts
 
 ---
 
