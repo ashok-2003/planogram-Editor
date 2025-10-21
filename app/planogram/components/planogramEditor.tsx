@@ -15,6 +15,8 @@ import { runValidation, findConflicts } from '@/lib/validation';
 import { debouncedSavePlanogram, loadPlanogramDraft, hasSavedDraft, clearPlanogramDraft, getLastSaveTimestamp, savePlanogramDraft, isDraftDifferent, getSavedDraft } from '@/lib/persistence';
 import toast from 'react-hot-toast';
 
+import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
+
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
 // --- UI Component for Mode Switching ---
@@ -133,19 +135,31 @@ function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: D
 }
 
 // --- UI Component for Save Indicator ---
-function SaveIndicator({ lastSaveTime, onManualSave }: { lastSaveTime: Date | null; onManualSave: () => void }) {
+function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime: Date | null; onManualSave: () => void; isSaving: boolean }) {
   const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : null;
   
   return (
     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
       <button 
         onClick={onManualSave}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
+        disabled={isSaving}
+        className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm ${
+          isSaving ? 'opacity-75 cursor-not-allowed' : ''
+        }`}
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-        </svg>
-        Save Now
+        {isSaving ? (
+          <>
+            <Spinner size="sm" color="white" />
+            <span>Saving...</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            Save Now
+          </>
+        )}
       </button>
       {timeAgo && (
         <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -230,16 +244,19 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
-  const [conflictIds, setConflictIds] = useState<string[]>([]);
-    const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
-  const [hasMounted, setHasMounted] = useState(false);
-  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;
-  // Check for saved draft on mount (client-side only)
+  const [conflictIds, setConflictIds] = useState<string[]>([]);  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');  const [hasMounted, setHasMounted] = useState(false);
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;  // Check for saved draft on mount (client-side only)
   useEffect(() => {
     setHasMounted(true);
+    // Simulate minimum loading time for smooth UX (500ms)
+    const loadingTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(loadingTimer);
   }, []);
   useEffect(() => {
     if (hasMounted && !initialLayoutLoaded) {
@@ -350,11 +367,16 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     clearPlanogramDraft();
     setShowRestorePrompt(false);
     toast.success('Draft dismissed');
-  }
-  function handleManualSave() {
-    savePlanogramDraft(refrigerator, selectedLayoutId);
-    setLastSaveTime(new Date());
-    toast.success('Planogram saved!');
+  }  function handleManualSave() {
+    setIsSaving(true);
+    
+    // Simulate async save operation (in real app, this would be an API call)
+    setTimeout(() => {
+      savePlanogramDraft(refrigerator, selectedLayoutId);
+      setLastSaveTime(new Date());
+      setIsSaving(false);
+      toast.success('Planogram saved!');
+    }, 800); // 800ms simulated delay for realistic feel
   }
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
@@ -479,16 +501,16 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           setInvalidModeAttempts(0);
         }
       }
-    }
-
-    setActiveItem(null);
+    }    setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
   }
   
-  if (!hasMounted) {
-    return null;
+  // Show skeleton loader while mounting and loading
+  if (!hasMounted || isLoading) {
+    return <PlanogramEditorSkeleton />;
   }
+  
   return (
     <div className=''>
       <div className="flex justify-between items-start text-black mb-4">
@@ -534,11 +556,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             </svg>
           </button>
         </div>
-      </div>
-
-      {/* Save Indicator */}
+      </div>      {/* Save Indicator */}
       <div className="mb-4">
-        <SaveIndicator lastSaveTime={lastSaveTime} onManualSave={handleManualSave} />
+        <SaveIndicator lastSaveTime={lastSaveTime} onManualSave={handleManualSave} isSaving={isSaving} />
       </div>
       
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
