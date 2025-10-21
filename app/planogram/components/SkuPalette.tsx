@@ -2,8 +2,8 @@
 
 import { Sku } from '@/lib/types';
 import { useDraggable } from '@dnd-kit/core';
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface SkuPaletteProps {
   skus: Sku[];
@@ -16,20 +16,16 @@ function DraggableSku({ sku }: { sku: Sku }) {
     });
 
     return (
-        <motion.div
+        <div
             ref={setNodeRef}
             {...listeners}
             {...attributes}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.15 }}
             className="p-2 border rounded-md cursor-grab active:cursor-grabbing bg-white hover:bg-gray-50 hover:shadow-md transition-all"
         >
             <img src={sku.imageUrl} alt={sku.name} className="h-20 object-contain mx-auto pointer-events-none" />
             <p className="text-center text-xs mt-2 font-medium text-gray-700 line-clamp-2">{sku.name}</p>
             <p className="text-center text-[10px] text-gray-500 mt-1">{sku.productType}</p>
-        </motion.div>
+        </div>
     )
 }
 
@@ -65,6 +61,7 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -101,6 +98,14 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
 
     return filtered;
   }, [skus, debouncedSearch, selectedCategory]);
+
+  // Virtual scrolling for performance with large lists
+  const rowVirtualizer = useVirtualizer({
+    count: filteredSkus.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 145, // Estimated height of each SKU card (including margin)
+    overscan: 3, // Render 3 items above/below viewport for smooth scrolling
+  });
 
   // Clear all filters
   const handleClearFilters = useCallback(() => {
@@ -179,25 +184,23 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Clear Filters Button */}
+      </div>      {/* Clear Filters Button */}
       {(searchQuery || selectedCategory !== 'all') && (
-        <motion.button
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <button
           onClick={handleClearFilters}
-          className="mb-3 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 justify-center py-1"
+          className="mb-3 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 justify-center py-1 transition-opacity"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
           Clear filters
-        </motion.button>
-      )}
-
-      {/* SKU List with AnimatePresence */}
-      <div className="flex-grow overflow-y-auto pr-2 -mr-2">
+        </button>
+      )}{/* SKU List with Virtual Scrolling */}
+      <div 
+        ref={parentRef}
+        className="flex-grow overflow-y-auto pr-2 -mr-2"
+        style={{ contain: 'strict' }}
+      >
         {filteredSkus.length === 0 ? (
           <EmptyState
             searchQuery={debouncedSearch}
@@ -205,12 +208,33 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
             onClear={handleClearFilters}
           />
         ) : (
-          <div className="space-y-3">
-            <AnimatePresence mode="popLayout">
-              {filteredSkus.map((sku) => (
-                <DraggableSku key={sku.skuId} sku={sku} />
-              ))}
-            </AnimatePresence>
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const sku = filteredSkus[virtualRow.index];
+              return (
+                <div
+                  key={sku.skuId}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className="pb-3" // spacing between items
+                >
+                  <DraggableSku sku={sku} />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
