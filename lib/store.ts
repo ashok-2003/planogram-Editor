@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Refrigerator, Item, Sku } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
+import toast from 'react-hot-toast';
 
 type StackLocation = { rowId: string; stackIndex: number; };
 
@@ -87,13 +88,12 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             if (!item) return state;
 
             const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
-
-            if (currentWidth + newItem.width <= row.capacity) {
+            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);            if (currentWidth + newItem.width <= row.capacity) {
                 row.stacks.push([newItem]);
+                toast.success('Item duplicated successfully!');
                 return { refrigerator: newFridge };
             } else {
-                alert("Not enough space in the row to duplicate!");
+                toast.error('Not enough space in the row to duplicate!');
                 return state;
             }
         });
@@ -113,13 +113,12 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             if (!item || !item.constraints.stackable) return state;
 
             const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
-
-            if (currentStackHeight + newItem.height <= row.maxHeight) {
+            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);            if (currentStackHeight + newItem.height <= row.maxHeight) {
                 stack.push(newItem);
+                toast.success('Item stacked successfully!');
                 return { refrigerator: newFridge };
             } else {
-                alert("Cannot stack, exceeds maximum row height!");
+                toast.error('Cannot stack - exceeds maximum row height!');
                 return state;
             }
         });
@@ -136,28 +135,27 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         const row = newFridge[location.rowId];
         const stack = row.stacks[location.stackIndex];
         const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
-        const oldItem = stack[itemIndex];
-
-        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
+        const oldItem = stack[itemIndex];        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
         if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
-          alert(`Invalid replacement: This row does not accept product type "${newItem.productType}".`);
+          toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
           return state;
         }
         const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
         const widthDifference = newItem.width - oldItem.width;
         if (currentWidth + widthDifference > row.capacity) {
-          alert("Invalid replacement: The new item is too wide for the remaining space in this row.");
+          toast.error('Cannot replace: The new item is too wide for this row.');
           return state;
         }
         const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
         const heightDifference = newItem.height - oldItem.height;
         if (currentStackHeight + heightDifference > row.maxHeight) {
-          alert("Invalid replacement: The new item is too tall for this stack.");
+          toast.error('Cannot replace: The new item is too tall for this stack.');
           return state;
         }
 
         stack[itemIndex] = newItem;
+        toast.success('Item replaced successfully!');
         return { refrigerator: newFridge, selectedItemId: newItem.id };
       });
     },
