@@ -12,7 +12,7 @@ import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
-import { debouncedSavePlanogram, loadPlanogramDraft, hasSavedDraft, clearPlanogramDraft, getLastSaveTimestamp } from '@/lib/persistence';
+import { debouncedSavePlanogram, loadPlanogramDraft, hasSavedDraft, clearPlanogramDraft, getLastSaveTimestamp, savePlanogramDraft, isDraftDifferent, getSavedDraft } from '@/lib/persistence';
 import toast from 'react-hot-toast';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
@@ -132,6 +132,33 @@ function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: D
   );
 }
 
+// --- UI Component for Save Indicator ---
+function SaveIndicator({ lastSaveTime, onManualSave }: { lastSaveTime: Date | null; onManualSave: () => void }) {
+  const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : null;
+  
+  return (
+    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <button 
+        onClick={onManualSave}
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+        </svg>
+        Save Now
+      </button>
+      {timeAgo && (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>Last saved: {timeAgo}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Helper function to format time ago
 function getTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -202,32 +229,43 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
-
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
     const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [hasMounted, setHasMounted] = useState(false);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  const canUndo = historyIndex > 0;
+  const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);  const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-
-  // Check for saved draft on mount
+  // Check for saved draft on mount (client-side only)
   useEffect(() => {
-    if (hasSavedDraft()) {
-      setShowRestorePrompt(true);
-      setLastSaveTime(getLastSaveTimestamp());
-    }
     setHasMounted(true);
   }, []);
-
+  useEffect(() => {
+    if (hasMounted && !initialLayoutLoaded) {
+      // Initialize with the initial layout first
+      usePlanogramStore.setState({ 
+        refrigerator: initialLayout,
+        history: [JSON.parse(JSON.stringify(initialLayout))],
+        historyIndex: 0
+      });
+      setInitialLayoutLoaded(true);
+      
+      // Then check if there's a different saved draft for the current layout
+      setTimeout(() => {
+        if (hasSavedDraft(selectedLayoutId) && isDraftDifferent(initialLayout, selectedLayoutId)) {
+          setShowRestorePrompt(true);
+          setLastSaveTime(getLastSaveTimestamp());
+        } else {
+          // If no different draft, update the last save time
+          setLastSaveTime(getLastSaveTimestamp());
+        }
+      }, 100);
+    }
+  }, [hasMounted, initialLayoutLoaded, initialLayout, selectedLayoutId]);
   useEffect(() => {
     // Initialize with the initial layout and set it as the first history state
-    usePlanogramStore.setState({ 
-      refrigerator: initialLayout,
-      history: [JSON.parse(JSON.stringify(initialLayout))],
-      historyIndex: 0
-    });
+    // This is now handled in the hasMounted effect above
   }, [initialLayout]);
 
   useEffect(() => {
@@ -259,14 +297,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       }
     };    window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [canUndo, canRedo, actions]);
-
-  // Auto-save to localStorage
+  }, [canUndo, canRedo, actions]);  // Auto-save to localStorage
   useEffect(() => {
-    if (hasMounted && refrigerator && Object.keys(refrigerator).length > 0) {
-      debouncedSavePlanogram(refrigerator);
+    if (hasMounted && initialLayoutLoaded && refrigerator && Object.keys(refrigerator).length > 0) {
+      debouncedSavePlanogram(refrigerator, selectedLayoutId);
+      // Update last save time after a short delay (accounting for debounce)
+      const timer = setTimeout(() => {
+        setLastSaveTime(new Date());
+      }, 1100); // Slightly longer than debounce delay
+      return () => clearTimeout(timer);
     }
-  }, [refrigerator, hasMounted]);
+  }, [refrigerator, hasMounted, initialLayoutLoaded, selectedLayoutId]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -283,25 +324,45 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       actions.selectItem(null);
       usePlanogramStore.setState({ refrigerator: newLayout });
     }
-  }
-
-  function handleRestoreDraft() {
-    const savedDraft = loadPlanogramDraft();
+  }  function handleRestoreDraft() {
+    const savedDraft = loadPlanogramDraft(selectedLayoutId);
+    console.log('🔄 Restoring draft for layout:', selectedLayoutId);
+    console.log('📦 Saved draft data:', savedDraft);
+    
     if (savedDraft) {
+      // Deep clone to ensure we have a fresh object
+      const restoredState = JSON.parse(JSON.stringify(savedDraft));
+      console.log('✅ Restored state:', restoredState);
+      
+      // Update the store with the restored state
       usePlanogramStore.setState({ 
-        refrigerator: savedDraft,
-        history: [JSON.parse(JSON.stringify(savedDraft))],
-        historyIndex: 0
+        refrigerator: restoredState,
+        history: [JSON.parse(JSON.stringify(restoredState))],
+        historyIndex: 0,
+        selectedItemId: null
       });
+      
+      // Verify the state was updated
+      const currentState = usePlanogramStore.getState().refrigerator;
+      console.log('🔍 Current store state after restore:', currentState);
+      
       toast.success('Draft restored successfully!');
       setShowRestorePrompt(false);
+      setLastSaveTime(new Date());
+    } else {
+      console.log('❌ No saved draft found for layout:', selectedLayoutId);
+      toast.error('Failed to restore draft - no saved data found');
     }
   }
-
   function handleDismissDraft() {
     clearPlanogramDraft();
     setShowRestorePrompt(false);
     toast.success('Draft dismissed');
+  }
+  function handleManualSave() {
+    savePlanogramDraft(refrigerator, selectedLayoutId);
+    setLastSaveTime(new Date());
+    toast.success('Planogram saved!');
   }
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
@@ -442,8 +503,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
         <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
       </div>
-      
-      <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4">
         <ModeToggle mode={interactionMode} setMode={handleModeChange} />
         
         {/* Undo/Redo Controls */}
@@ -482,6 +542,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             </svg>
           </button>
         </div>
+      </div>
+
+      {/* Save Indicator */}
+      <div className="mb-4">
+        <SaveIndicator lastSaveTime={lastSaveTime} onManualSave={handleManualSave} />
       </div>
       
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
