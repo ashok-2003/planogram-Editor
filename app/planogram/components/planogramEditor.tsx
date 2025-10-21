@@ -151,6 +151,8 @@ interface PlanogramEditorProps {
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+  const history = usePlanogramStore((state) => state.history);
+  const historyIndex = usePlanogramStore((state) => state.historyIndex);
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
@@ -165,6 +167,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [hasMounted, setHasMounted] = useState(false);
 
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
   useEffect(() => {
     usePlanogramStore.setState({ refrigerator: initialLayout });
     setHasMounted(true);
@@ -175,6 +180,26 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       usePlanogramStore.setState({ refrigerator: initialLayouts[selectedLayoutId].layout });
     }
   }, [selectedLayoutId, initialLayouts, hasMounted]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) actions.undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo) actions.redo();
+      }
+      if (e.key === 'Delete' && usePlanogramStore.getState().selectedItemId) {
+        e.preventDefault();
+        actions.deleteSelectedItem();
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [canUndo, canRedo, actions]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -326,14 +351,54 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   if (!hasMounted) {
     return null;
   }
-
   return (
     <div className=''>
-      <div className="flex justify-between items-start text-black">
+      <div className="flex justify-between items-start text-black mb-4">
         <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
         <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
       </div>
-      <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+      
+      <div className="flex justify-between items-center mb-4">
+        <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+        
+        {/* Undo/Redo Controls */}
+        <div className="flex gap-2">
+          <button
+            onClick={actions.undo}
+            disabled={!canUndo}
+            className={clsx(
+              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+              canUndo
+                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            )}
+            title="Undo (Ctrl+Z)"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Undo
+          </button>
+          
+          <button
+            onClick={actions.redo}
+            disabled={!canRedo}
+            className={clsx(
+              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+              canRedo
+                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            )}
+            title="Redo (Ctrl+Y)"
+          >
+            Redo
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
           <div className="flex flex-col md:flex-row gap-8 max-h-screen">
