@@ -12,6 +12,8 @@ import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
+import { debouncedSavePlanogram, loadPlanogramDraft, hasSavedDraft, clearPlanogramDraft, getLastSaveTimestamp } from '@/lib/persistence';
+import toast from 'react-hot-toast';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
@@ -99,10 +101,50 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
         <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
           Disable Rules
         </button>
+      </div>    </div>
+  );
+}
+
+// --- UI Component for Restore Draft Prompt ---
+function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: Date | null; onRestore: () => void; onDismiss: () => void; }) {
+  const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : 'recently';
+  
+  return (
+    <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-blue-500 text-white p-4 rounded-lg shadow-2xl flex items-center gap-4 z-50 max-w-md">
+      <div className="flex-shrink-0">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-bold">Unsaved Work Found!</p>
+        <p className="text-xs opacity-90">You have changes from {timeAgo}</p>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onRestore} className="bg-white text-blue-500 px-3 py-1 rounded font-semibold text-sm hover:bg-blue-50 transition-colors">
+          Restore
+        </button>
+        <button onClick={onDismiss} className="bg-blue-600 text-white px-3 py-1 rounded font-semibold text-sm hover:bg-blue-700 transition-colors">
+          Dismiss
+        </button>
       </div>
     </div>
   );
 }
+
+// Helper function to format time ago
+function getTimeAgo(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
 // ... (LayoutSelector remains the same)
 interface LayoutSelectorProps {
   layouts: { [key: string]: { name: string; layout: Refrigerator } };
@@ -163,12 +205,22 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
-  
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
+    const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [hasMounted, setHasMounted] = useState(false);
-
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+
+  // Check for saved draft on mount
+  useEffect(() => {
+    if (hasSavedDraft()) {
+      setShowRestorePrompt(true);
+      setLastSaveTime(getLastSaveTimestamp());
+    }
+    setHasMounted(true);
+  }, []);
+
   useEffect(() => {
     // Initialize with the initial layout and set it as the first history state
     usePlanogramStore.setState({ 
@@ -176,7 +228,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       history: [JSON.parse(JSON.stringify(initialLayout))],
       historyIndex: 0
     });
-    setHasMounted(true);
   }, [initialLayout]);
 
   useEffect(() => {
@@ -206,10 +257,16 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         e.preventDefault();
         actions.deleteSelectedItem();
       }
-    };
-    window.addEventListener('keydown', handleKeyPress);
+    };    window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [canUndo, canRedo, actions]);
+
+  // Auto-save to localStorage
+  useEffect(() => {
+    if (hasMounted && refrigerator && Object.keys(refrigerator).length > 0) {
+      debouncedSavePlanogram(refrigerator);
+    }
+  }, [refrigerator, hasMounted]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -219,7 +276,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       setConflictIds(conflicts);
     }
   }, [refrigerator]);
-
   function handleLayoutChange(layoutId: string) {
     setSelectedLayoutId(layoutId);
     const newLayout = initialLayouts[layoutId]?.layout;
@@ -227,6 +283,25 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       actions.selectItem(null);
       usePlanogramStore.setState({ refrigerator: newLayout });
     }
+  }
+
+  function handleRestoreDraft() {
+    const savedDraft = loadPlanogramDraft();
+    if (savedDraft) {
+      usePlanogramStore.setState({ 
+        refrigerator: savedDraft,
+        history: [JSON.parse(JSON.stringify(savedDraft))],
+        historyIndex: 0
+      });
+      toast.success('Draft restored successfully!');
+      setShowRestorePrompt(false);
+    }
+  }
+
+  function handleDismissDraft() {
+    clearPlanogramDraft();
+    setShowRestorePrompt(false);
+    toast.success('Draft dismissed');
   }
 
   function handleModeChange(newMode: 'reorder' | 'stack') {
@@ -440,8 +515,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               onDisableRules={() => setIsRulesEnabled(false)}
             />
           </motion.div>
-        )}
-        {showModePrompt && (
+        )}        {showModePrompt && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
@@ -449,6 +523,20 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
             <ModePrompt onDismiss={() => setShowModePrompt(false)} />
+          </motion.div>
+        )}
+        {showRestorePrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          >
+            <RestorePrompt 
+              lastSaveTime={lastSaveTime}
+              onRestore={handleRestoreDraft}
+              onDismiss={handleDismissDraft}
+            />
           </motion.div>
         )}
       </AnimatePresence>
