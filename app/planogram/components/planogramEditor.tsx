@@ -326,13 +326,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     }
   }  function handleRestoreDraft() {
     const savedDraft = loadPlanogramDraft(selectedLayoutId);
-    console.log('🔄 Restoring draft for layout:', selectedLayoutId);
-    console.log('📦 Saved draft data:', savedDraft);
     
     if (savedDraft) {
       // Deep clone to ensure we have a fresh object
       const restoredState = JSON.parse(JSON.stringify(savedDraft));
-      console.log('✅ Restored state:', restoredState);
       
       // Update the store with the restored state
       usePlanogramStore.setState({ 
@@ -342,15 +339,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         selectedItemId: null
       });
       
-      // Verify the state was updated
-      const currentState = usePlanogramStore.getState().refrigerator;
-      console.log('🔍 Current store state after restore:', currentState);
-      
       toast.success('Draft restored successfully!');
       setShowRestorePrompt(false);
       setLastSaveTime(new Date());
     } else {
-      console.log('❌ No saved draft found for layout:', selectedLayoutId);
       toast.error('Failed to restore draft - no saved data found');
     }
   }

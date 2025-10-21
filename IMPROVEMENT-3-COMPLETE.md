@@ -187,13 +187,12 @@ When restore is triggered:
 - [x] Auto-save triggers after changes
 - [x] Manual save button works
 - [x] Restore prompt appears when appropriate
-- [x] Restore actually restores items
 - [x] Layout switching preserves separate states
 - [x] "Last saved" time updates correctly
 - [x] Dismiss clears saved draft
-- [x] Works across page refreshes
 - [x] Console logs provide debug info
 - [x] Toast notifications work
+- [ ] Restore actually restores items ⚠️ (PARTIAL - needs debugging)
 
 ## 🎉 Result
 
@@ -201,12 +200,23 @@ Users can now:
 - ✅ Work confidently without losing progress
 - ✅ See when their work was last saved
 - ✅ Manually save at important moments
-- ✅ Restore previous work after page refresh
+- ⚠️ Restore previous work after page refresh (partial - prompt shows but items not rendering)
 - ✅ Switch between layouts without mixing state
 - ✅ Get clear feedback on save operations
 
+## ⚠️ Known Issues
+
+### Restore Not Rendering Items
+- **Problem**: Restore prompt appears and save/load works, but items don't render on refrigerator
+- **Status**: Needs investigation
+- **Possible causes**:
+  - State update not triggering re-render
+  - Timing issue with component lifecycle
+  - Deep equality check preventing update
+- **Next steps**: Debug state flow and component rendering
+
 ---
 
-**Status**: ✅ COMPLETED
+**Status**: ⚠️ PARTIALLY COMPLETED (90% done)
 **Created**: 2025-10-21
 **Last Updated**: 2025-10-21
