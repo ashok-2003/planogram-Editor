@@ -169,15 +169,25 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-
   useEffect(() => {
-    usePlanogramStore.setState({ refrigerator: initialLayout });
+    // Initialize with the initial layout and set it as the first history state
+    usePlanogramStore.setState({ 
+      refrigerator: initialLayout,
+      history: [JSON.parse(JSON.stringify(initialLayout))],
+      historyIndex: 0
+    });
     setHasMounted(true);
   }, [initialLayout]);
 
   useEffect(() => {
     if (hasMounted && initialLayouts[selectedLayoutId]) {
-      usePlanogramStore.setState({ refrigerator: initialLayouts[selectedLayoutId].layout });
+      const newLayout = initialLayouts[selectedLayoutId].layout;
+      // When switching layouts, reset history with the new layout as the initial state
+      usePlanogramStore.setState({ 
+        refrigerator: newLayout,
+        history: [JSON.parse(JSON.stringify(newLayout))],
+        historyIndex: 0
+      });
     }
   }, [selectedLayoutId, initialLayouts, hasMounted]);
 
