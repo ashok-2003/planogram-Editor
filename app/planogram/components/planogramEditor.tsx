@@ -576,10 +576,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               dropIndicator={dropIndicator}
               conflictIds={isRulesEnabled ? conflictIds : []}
               selectedLayoutId={selectedLayoutId}
-            />
-          </div>
+            />          </div>
           <div>
-            <InfoPanel availableSkus={initialSkus} />
+            <InfoPanel availableSkus={initialSkus} isRulesEnabled={isRulesEnabled} />
           </div>
           <div className='flex justify-end items-baseline-last'>
             <StatePreview />

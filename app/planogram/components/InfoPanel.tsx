@@ -8,9 +8,10 @@ import clsx from 'clsx';
 
 interface InfoPanelProps {
   availableSkus: Sku[];
+  isRulesEnabled: boolean;
 }
 
-export function InfoPanel({ availableSkus }: InfoPanelProps) {
+export function InfoPanel({ availableSkus, isRulesEnabled }: InfoPanelProps) {
   const selectedItemId = usePlanogramStore((state) => state.selectedItemId);
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
   const actions = usePlanogramStore((state) => state.actions);
@@ -32,7 +33,7 @@ export function InfoPanel({ availableSkus }: InfoPanelProps) {
   }, [selectedItemId, refrigerator]);
 
   const handleReplace = (sku: Sku) => {
-    actions.replaceSelectedItem(sku);
+    actions.replaceSelectedItem(sku, isRulesEnabled);
     setIsReplacing(false);
   }
 

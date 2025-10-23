@@ -12,12 +12,11 @@ interface PlanogramState {
   historyIndex: number;
   findStackLocation: (itemIdOrStackId: string) => StackLocation | null;
   actions: {
-    selectItem: (itemId: string | null) => void;
-    deleteSelectedItem: () => void;
+    selectItem: (itemId: string | null) => void;    deleteSelectedItem: () => void;
     removeItemsById: (itemIds: string[]) => void;
     duplicateAndAddNew: () => void;
     duplicateAndStack: () => void;
-    replaceSelectedItem: (newSku: Sku) => void;
+    replaceSelectedItem: (newSku: Sku, isRulesEnabled?: boolean) => void;
     moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number) => void;
     addItemFromSku: (sku: Sku, targetRowId: string, targetStackIndex?: number) => void;
     reorderStack: (rowId: string, oldIndex: number, newIndex: number) => void;
@@ -163,8 +162,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
                 return state;
             }
         });
-    },
-    replaceSelectedItem: (newSku) => {
+    },    replaceSelectedItem: (newSku, isRulesEnabled = true) => {
       const { selectedItemId, findStackLocation } = get();
       if (!selectedItemId) return;
 
@@ -178,10 +176,13 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
         const oldItem = stack[itemIndex];        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
-        if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
+        // Only check product type rules if rules are enabled
+        if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
           toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
           return state;
         }
+        
+        // Always check size constraints (width and height)
         const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
         const widthDifference = newItem.width - oldItem.width;
         if (currentWidth + widthDifference > row.capacity) {
@@ -193,7 +194,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (currentStackHeight + heightDifference > row.maxHeight) {
           toast.error('Cannot replace: The new item is too tall for this stack.');
           return state;
-        }        stack[itemIndex] = newItem;
+        }stack[itemIndex] = newItem;
         toast.success('Item replaced successfully!');
         const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
         return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
