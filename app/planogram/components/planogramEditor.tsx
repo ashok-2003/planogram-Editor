@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
 import { SkuPalette } from './SkuPalette';
@@ -325,7 +325,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       return () => clearTimeout(timer);
     }
   }, [refrigerator, hasMounted, initialLayoutLoaded, selectedLayoutId]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { 
+      activationConstraint: { distance: 8 }
+    })
+  );
 
   // Memoize expensive conflict detection computation
   useEffect(() => {
@@ -429,10 +433,19 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         findStackLocation,
         isRulesEnabled,
       });      setDragValidation(validationResult);
-    }
-  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
+    }  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
+  
+  // Throttle ref for dragOver performance optimization
+  const dragOverThrottleRef = useRef<number>(0);
   
   const handleDragOver = useCallback((event: DragOverEvent) => {
+    // Throttle dragOver to every 16ms (60fps) for better performance
+    const now = Date.now();
+    if (now - dragOverThrottleRef.current < 16) {
+      return;
+    }
+    dragOverThrottleRef.current = now;
+    
     const { active, over } = event;
     if (!over) { setDropIndicator(null); return; }
 

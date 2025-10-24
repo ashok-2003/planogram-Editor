@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Refrigerator, Item, Sku } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
 import toast from 'react-hot-toast';
+import { produce } from 'immer';
 
 type StackLocation = { rowId: string; stackIndex: number; };
 
@@ -32,7 +33,7 @@ const generateUniqueId = (skuId: string) => `${skuId}-${Date.now()}-${Math.rando
 const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], historyIndex: number): { history: Refrigerator[]; historyIndex: number } => {
   // If this is the very first change and history is empty, save the initial state
   if (history.length === 0) {
-    const newHistory = [JSON.parse(JSON.stringify(currentState))];
+    const newHistory = [produce(currentState, () => {})];
     return {
       history: newHistory,
       historyIndex: 0
@@ -51,8 +52,8 @@ const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], hist
 const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyIndex: number): { history: Refrigerator[]; historyIndex: number } => {
   // Remove any future history if we're not at the end
   const newHistory = history.slice(0, historyIndex + 1);
-  // Add the new state
-  newHistory.push(JSON.parse(JSON.stringify(newState)));
+  // Add the new state (Immer produces immutable draft, so we can add directly)
+  newHistory.push(produce(newState, () => {}));
   // Limit history to last 50 states to prevent memory issues
   const limitedHistory = newHistory.slice(-50);
   return {
@@ -86,23 +87,24 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         actions.removeItemsById([selectedItemId]);
     },    removeItemsById: (itemIds) => {
       set(state => {
-        const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
         let itemsRemoved = false;
         
-        for (const rowId in newFridge) {
-          // Filter out empty stacks that result from removing items
-          newFridge[rowId].stacks = newFridge[rowId].stacks
-            .map((stack: Item[]) => {
-              // Filter out the items to be removed from this stack
-              return stack.filter(item => {
-                const shouldRemove = itemIds.includes(item.id);
-                if (shouldRemove) itemsRemoved = true;
-                return !shouldRemove;
-              });
-            })
-            // After filtering items, filter out any stacks that are now empty
-            .filter((stack: Item[]) => stack.length > 0);
-        }
+        const newFridge = produce(state.refrigerator, draft => {
+          for (const rowId in draft) {
+            // Filter out empty stacks that result from removing items
+            draft[rowId].stacks = draft[rowId].stacks
+              .map((stack: Item[]) => {
+                // Filter out the items to be removed from this stack
+                return stack.filter(item => {
+                  const shouldRemove = itemIds.includes(item.id);
+                  if (shouldRemove) itemsRemoved = true;
+                  return !shouldRemove;
+                });
+              })
+              // After filtering items, filter out any stacks that are now empty
+              .filter((stack: Item[]) => stack.length > 0);
+          }
+        });
 
         if (itemsRemoved) {
           const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
@@ -110,8 +112,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         }
         return state; // No changes
       });
-    },
-    duplicateAndAddNew: () => {
+    },    duplicateAndAddNew: () => {
         const { selectedItemId, findStackLocation } = get();
         if (!selectedItemId) return;
         
@@ -119,15 +120,18 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (!location) return;
 
         set(state => {
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const row = newFridge[location.rowId];
+            const row = state.refrigerator[location.rowId];
             const stack = row.stacks[location.stackIndex];
             const item = stack.find((i: Item) => i.id === selectedItemId);
             if (!item) return state;
 
             const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);            if (currentWidth + newItem.width <= row.capacity) {
-                row.stacks.push([newItem]);
+            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+            
+            if (currentWidth + newItem.width <= row.capacity) {
+                const newFridge = produce(state.refrigerator, draft => {
+                    draft[location.rowId].stacks.push([newItem]);
+                });
                 toast.success('Item duplicated successfully!');
                 const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
                 return { refrigerator: newFridge, ...historyUpdate };
@@ -136,8 +140,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
                 return state;
             }
         });
-    },
-    duplicateAndStack: () => {
+    },    duplicateAndStack: () => {
         const { selectedItemId, findStackLocation } = get();
         if (!selectedItemId) return;
         
@@ -145,15 +148,18 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (!location) return;
 
         set(state => {
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const row = newFridge[location.rowId];
+            const row = state.refrigerator[location.rowId];
             const stack = row.stacks[location.stackIndex];
             const item = stack.find((i: Item) => i.id === selectedItemId);
             if (!item || !item.constraints.stackable) return state;
 
             const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);            if (currentStackHeight + newItem.height <= row.maxHeight) {
-                stack.push(newItem);
+            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+            
+            if (currentStackHeight + newItem.height <= row.maxHeight) {
+                const newFridge = produce(state.refrigerator, draft => {
+                    draft[location.rowId].stacks[location.stackIndex].push(newItem);
+                });
                 toast.success('Item stacked successfully!');
                 const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
                 return { refrigerator: newFridge, ...historyUpdate };
@@ -170,11 +176,11 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
       if (!location) return;
       
       set(state => {
-        const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-        const row = newFridge[location.rowId];
+        const row = state.refrigerator[location.rowId];
         const stack = row.stacks[location.stackIndex];
         const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
-        const oldItem = stack[itemIndex];        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
+        const oldItem = stack[itemIndex];
+        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
         // Only check product type rules if rules are enabled
         if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
@@ -194,56 +200,64 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (currentStackHeight + heightDifference > row.maxHeight) {
           toast.error('Cannot replace: The new item is too tall for this stack.');
           return state;
-        }stack[itemIndex] = newItem;
+        }
+        
+        const newFridge = produce(state.refrigerator, draft => {
+          draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
+        });
         toast.success('Item replaced successfully!');
         const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
         return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
       });
-    },addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
+    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
         set(state => {
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const targetRow = newFridge[targetRowId];
+            const targetRow = state.refrigerator[targetRowId];
             if(!targetRow) return state;
             
             const newItem: Item = { ...sku, id: generateUniqueId(sku.skuId) };
-              if (targetStackIndex >= 0 && targetStackIndex <= targetRow.stacks.length) {
-              targetRow.stacks.splice(targetStackIndex, 0, [newItem]);
-            } else {
-              targetRow.stacks.push([newItem]);
-            }
+            
+            const newFridge = produce(state.refrigerator, draft => {
+              if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
+                draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);
+              } else {
+                draft[targetRowId].stacks.push([newItem]);
+              }
+            });
             
             const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
             return { refrigerator: newFridge, ...historyUpdate };
         });
-    },moveItem: (itemId, targetRowId, targetStackIndex) => {
+    },    moveItem: (itemId, targetRowId, targetStackIndex) => {
         set(state => {
             const { findStackLocation } = get();
             const location = findStackLocation(itemId);
             if (!location) return state;
 
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const draggedStack = newFridge[location.rowId].stacks[location.stackIndex];
+            const draggedStack = state.refrigerator[location.rowId].stacks[location.stackIndex];
             
-            newFridge[location.rowId].stacks.splice(location.stackIndex, 1);
-            
-            const targetRow = newFridge[targetRowId];            if (targetStackIndex !== undefined) {
-                targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
-            } else {
-                targetRow.stacks.push(draggedStack);
-            }
+            const newFridge = produce(state.refrigerator, draft => {
+              draft[location.rowId].stacks.splice(location.stackIndex, 1);
+              
+              const targetRow = draft[targetRowId];
+              if (targetStackIndex !== undefined) {
+                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+              } else {
+                  targetRow.stacks.push(draggedStack);
+              }
+            });
 
             const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
             return { refrigerator: newFridge, ...historyUpdate };
         });
     },    reorderStack: (rowId, oldIndex, newIndex) => {
         set(state => {
-            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            newFridge[rowId].stacks = arrayMove(newFridge[rowId].stacks, oldIndex, newIndex);
+            const newFridge = produce(state.refrigerator, draft => {
+              draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
+            });
             const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
             return { refrigerator: newFridge, ...historyUpdate };
         });
-    },
-    stackItem: (draggedStackId, targetStackId) => {
+    },    stackItem: (draggedStackId, targetStackId) => {
         set(state => {
             const { findStackLocation } = get();
             const draggedLocation = findStackLocation(draggedStackId);
@@ -251,26 +265,28 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
 
             if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
                 return state;
-            }            const newFridge = JSON.parse(JSON.stringify(state.refrigerator));
-            const row = newFridge[draggedLocation.rowId];
+            }
+            
+            const row = state.refrigerator[draggedLocation.rowId];
             const draggedStack = row.stacks[draggedLocation.stackIndex];
-            const targetStack = row.stacks[targetLocation.stackIndex];
             const itemToStack = draggedStack[0];
-              targetStack.push(itemToStack);
-            row.stacks.splice(draggedLocation.stackIndex, 1);
+            
+            const newFridge = produce(state.refrigerator, draft => {
+              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+              draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
+            });
 
             const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
             return { refrigerator: newFridge, ...historyUpdate };
         });
-    },
-    undo: () => {
+    },    undo: () => {
       set(state => {
         if (state.historyIndex > 0) {
           const newIndex = state.historyIndex - 1;
           const previousState = state.history[newIndex];
           toast.success('Undo successful');
           return {
-            refrigerator: JSON.parse(JSON.stringify(previousState)),
+            refrigerator: produce(previousState, () => {}),
             historyIndex: newIndex,
             selectedItemId: null
           };
@@ -287,7 +303,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           const nextState = state.history[newIndex];
           toast.success('Redo successful');
           return {
-            refrigerator: JSON.parse(JSON.stringify(nextState)),
+            refrigerator: produce(nextState, () => {}),
             historyIndex: newIndex,
             selectedItemId: null
           };
