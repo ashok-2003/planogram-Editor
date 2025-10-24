@@ -41,7 +41,7 @@ export function ItemComponent({ item }: ItemProps) {
       animate={{
         scale: isSelected ? 1.02 : 1,
         boxShadow: isSelected 
-          ? "0 0 20px rgba(59, 130, 246, 0.5)" 
+          ? "0 0 10px rgba(59, 130, 246, 0.5)" 
           : "0 2px 4px rgba(0, 0, 0, 0.1)"
       }}
       transition={{ 
@@ -52,9 +52,9 @@ export function ItemComponent({ item }: ItemProps) {
       {/* Selection pulse effect */}
       {isSelected && (
         <motion.div
-          className="absolute inset-0 bg-blue-400/20 rounded-md"
+          className="absolute inset-0 bg-blue-400"
           animate={{
-            opacity: [0.2, 0.4, 0.2],
+            opacity: [0.6, 0.8, 0.6],
             scale: [1, 1.02, 1]
           }}
           transition={{
