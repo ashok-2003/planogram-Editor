@@ -29,7 +29,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Toaster 
-          position="top-right"
+          position="bottom-right"
           toastOptions={{
             duration: 3000,
             style: {
