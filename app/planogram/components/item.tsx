@@ -53,10 +53,10 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
       {/* Selection pulse effect */}
       {isSelected && (
         <motion.div
-          className="absolute inset-0 bg-blue-400/20 rounded-md"
+          className="absolute inset-0 bg-blue-400"
           animate={{
-            opacity: [0.2, 0.4, 0.2],
-            scale: [1, 1.02, 1]
+            opacity: [0.6, 0.8, 0.6],
+            scale: [1, 1, 1]
           }}
           transition={{
             duration: 2,
