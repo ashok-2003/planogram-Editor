@@ -5,6 +5,7 @@ import { Item, Sku } from '@/lib/types';
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import clsx from 'clsx';
+import { PIXELS_PER_MM } from '@/lib/config';
 
 interface InfoPanelProps {
   availableSkus: Sku[];
@@ -91,6 +92,7 @@ export function InfoPanel({ availableSkus, isRulesEnabled }: InfoPanelProps) {
               <div>
                 <p className="text-sm font-medium text-gray-500">Product Name</p>
                 <p className="text-md font-semibold text-gray-900">{selectedItem.name}</p>
+                <p className="text-xs font-semibold text-gray-700">{`widht: ${selectedItem.width / PIXELS_PER_MM}mm, height:${selectedItem.height / PIXELS_PER_MM}mm`}</p>
               </div>
             </div>
             
