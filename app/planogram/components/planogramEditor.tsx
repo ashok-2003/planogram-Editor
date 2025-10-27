@@ -12,7 +12,6 @@ import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
-import { debouncedSavePlanogram, loadPlanogramDraft, hasSavedDraft, clearPlanogramDraft, getLastSaveTimestamp, savePlanogramDraft, isDraftDifferent, getSavedDraft } from '@/lib/persistence';
 import toast from 'react-hot-toast';
 
 import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
@@ -236,6 +235,12 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
+  
+  // NEW: Access persistence state from store (Phase 9)
+  const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
+  const syncStatus = usePlanogramStore((state) => state.syncStatus);
+  const lastSynced = usePlanogramStore((state) => state.lastSynced);
+  
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
@@ -244,59 +249,26 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
-  const [conflictIds, setConflictIds] = useState<string[]>([]);  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');  const [hasMounted, setHasMounted] = useState(false);
-  const [showRestorePrompt, setShowRestorePrompt] = useState(false);  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);
+  const [conflictIds, setConflictIds] = useState<string[]>([]);
+  
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;  // Check for saved draft on mount (client-side only)
+  
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+  
+  // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
-    setHasMounted(true);
-    // Simulate minimum loading time for smooth UX (500ms)
+    // Initialize layout on mount
+    actions.initializeLayout(selectedLayoutId, initialLayout);
+    
+    // Simulate minimum loading time for smooth UX
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
-    return () => clearTimeout(loadingTimer);
+      return () => clearTimeout(loadingTimer);
   }, []);
-  useEffect(() => {
-    if (hasMounted && !initialLayoutLoaded) {
-      // Initialize with the initial layout first
-      usePlanogramStore.setState({ 
-        refrigerator: initialLayout,
-        history: [JSON.parse(JSON.stringify(initialLayout))],
-        historyIndex: 0
-      });
-      setInitialLayoutLoaded(true);
-      
-      // Then check if there's a different saved draft for the current layout
-      setTimeout(() => {
-        if (hasSavedDraft(selectedLayoutId) && isDraftDifferent(initialLayout, selectedLayoutId)) {
-          setShowRestorePrompt(true);
-          setLastSaveTime(getLastSaveTimestamp());
-        } else {
-          // If no different draft, update the last save time
-          setLastSaveTime(getLastSaveTimestamp());
-        }
-      }, 100);
-    }
-  }, [hasMounted, initialLayoutLoaded, initialLayout, selectedLayoutId]);
-  useEffect(() => {
-    // Initialize with the initial layout and set it as the first history state
-    // This is now handled in the hasMounted effect above
-  }, [initialLayout]);
-
-  useEffect(() => {
-    if (hasMounted && initialLayouts[selectedLayoutId]) {
-      const newLayout = initialLayouts[selectedLayoutId].layout;
-      // When switching layouts, reset history with the new layout as the initial state
-      usePlanogramStore.setState({ 
-        refrigerator: newLayout,
-        history: [JSON.parse(JSON.stringify(newLayout))],
-        historyIndex: 0
-      });
-    }
-  }, [selectedLayoutId, initialLayouts, hasMounted]);
-
+  
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -312,25 +284,16 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         e.preventDefault();
         actions.deleteSelectedItem();
       }
-    };    window.addEventListener('keydown', handleKeyPress);
+    };
+      window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [canUndo, canRedo, actions]);  // Auto-save to localStorage
-  useEffect(() => {
-    if (hasMounted && initialLayoutLoaded && refrigerator && Object.keys(refrigerator).length > 0) {
-      debouncedSavePlanogram(refrigerator, selectedLayoutId);
-      // Update last save time after a short delay (accounting for debounce)
-      const timer = setTimeout(() => {
-        setLastSaveTime(new Date());
-      }, 1100); // Slightly longer than debounce delay
-      return () => clearTimeout(timer);
-    }
-  }, [refrigerator, hasMounted, initialLayoutLoaded, selectedLayoutId]);
+  }, [canUndo, canRedo, actions]);
+  
   const sensors = useSensors(
     useSensor(PointerSensor, { 
       activationConstraint: { distance: 8 }
     })
   );
-
   // Memoize expensive conflict detection computation
   useEffect(() => {
     if (refrigerator && Object.keys(refrigerator).length > 0 && isRulesEnabled) {
@@ -341,55 +304,14 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     }
   }, [refrigerator, isRulesEnabled]);
   
-  // Memoize event handlers to prevent recreation on every render
+  // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
     setSelectedLayoutId(layoutId);
     const newLayout = initialLayouts[layoutId]?.layout;
     if (newLayout) {
-      actions.selectItem(null);
-      usePlanogramStore.setState({ refrigerator: newLayout });
+      actions.switchLayout(layoutId, newLayout);
     }
   }, [initialLayouts, actions]);
-
-  const handleRestoreDraft = useCallback(() => {
-    const savedDraft = loadPlanogramDraft(selectedLayoutId);
-    
-    if (savedDraft) {
-      // Deep clone to ensure we have a fresh object
-      const restoredState = JSON.parse(JSON.stringify(savedDraft));
-      
-      // Update the store with the restored state
-      usePlanogramStore.setState({ 
-        refrigerator: restoredState,
-        history: [JSON.parse(JSON.stringify(restoredState))],
-        historyIndex: 0,
-        selectedItemId: null
-      });
-      
-      toast.success('Draft restored successfully!');
-      setShowRestorePrompt(false);
-      setLastSaveTime(new Date());
-    } else {      toast.error('Failed to restore draft - no saved data found');
-    }
-  }, [selectedLayoutId]);
-
-  const handleDismissDraft = useCallback(() => {
-    clearPlanogramDraft();
-    setShowRestorePrompt(false);
-    toast.success('Draft dismissed');
-  }, []);
-
-  const handleManualSave = useCallback(() => {
-    setIsSaving(true);
-    
-    // Simulate async save operation (in real app, this would be an API call)
-    setTimeout(() => {
-      savePlanogramDraft(refrigerator, selectedLayoutId);
-      setLastSaveTime(new Date());
-      setIsSaving(false);
-      toast.success('Planogram saved!');
-    }, 800); // 800ms simulated delay for realistic feel
-  }, [refrigerator, selectedLayoutId]);
 
   const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
@@ -522,11 +444,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         }
       }    }    setActiveItem(null);
     setDropIndicator(null);
-    setDragValidation(null);
-  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
+    setDragValidation(null);  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
   
-  // Show skeleton loader while mounting and loading
-  if (!hasMounted || isLoading) {
+  // Show skeleton loader while loading
+  if (isLoading) {
     return <PlanogramEditorSkeleton />;
   }
   
@@ -571,13 +492,26 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           >
             Redo
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />            </svg>
+          </button>
+          
+          {/* NEW: Clear Draft Button (Phase 10) */}
+          <button
+            onClick={actions.clearDraft}
+            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md hover:shadow-lg"
+            title="Clear All Items"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
+            Clear All
           </button>
         </div>
-      </div>      {/* Save Indicator */}
+      </div>
+      
+      {/* NEW: Save Indicator using store state (Phase 10) */}
       <div className="mb-4">
-        <SaveIndicator lastSaveTime={lastSaveTime} onManualSave={handleManualSave} isSaving={isSaving} />
+        <SaveIndicator lastSaveTime={lastSynced} onManualSave={actions.manualSync} isSaving={syncStatus === 'syncing'} />
       </div>
       
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
@@ -618,9 +552,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
             <ModePrompt onDismiss={() => setShowModePrompt(false)} />
-          </motion.div>
-        )}
-        {showRestorePrompt && (
+          </motion.div>        )}
+        {/* NEW: Restore prompt using store state (Phase 10) */}
+        {hasPendingDraft && (
           <motion.div
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
@@ -628,9 +562,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
             <RestorePrompt 
-              lastSaveTime={lastSaveTime}
-              onRestore={handleRestoreDraft}
-              onDismiss={handleDismissDraft}
+              lastSaveTime={lastSynced}
+              onRestore={actions.restoreDraft}
+              onDismiss={actions.dismissDraft}
             />
           </motion.div>
         )}
