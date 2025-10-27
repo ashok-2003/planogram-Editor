@@ -42,10 +42,9 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
     }
     return 0;
   }, [selectedItem, refrigerator]);
-  
-  const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
+    const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
   const maxWidthMM = Math.floor(availableWidth / PIXELS_PER_MM);
-  const minWidthMM = 10;
+  const minWidthMM = 25;
   
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = Number(e.target.value);
@@ -75,9 +74,8 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
       handleInputBlur();
     }
   };
-  
-  return (
-    <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg shadow-sm">
+    return (
+    <div className="my-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg shadow-sm">
       <div className="flex items-center justify-between mb-2">
         <label className="block text-sm font-bold text-blue-900">
           📏 Width Adjustment
@@ -132,7 +130,6 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
       </div>
       
       <p className="mt-3 text-xs text-blue-700 italic flex items-start gap-1">
-        <span className="text-sm">💡</span>
         <span>Drag slider or type width. Steps of 5mm.</span>
       </p>
     </div>

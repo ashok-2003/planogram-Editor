@@ -477,11 +477,10 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             stackItem.id === itemId ? 0 : s + stackItem.width, 0
           );
         }, 0);
+          const availableWidth = row.capacity - usedWidth;
         
-        const availableWidth = row.capacity - usedWidth;
-        
-        // Clamp to min/max (min: 10mm, max: available space)
-        const MIN_WIDTH_MM = 10;
+        // Clamp to min/max (min: 25mm, max: available space)
+        const MIN_WIDTH_MM = 25;
         const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
         const MAX_WIDTH = availableWidth;
         
