@@ -11,9 +11,22 @@ interface PlanogramState {
   selectedItemId: string | null;
   history: Refrigerator[];
   historyIndex: number;
-  findStackLocation: (itemIdOrStackId: string) => StackLocation | null;
-  actions: {
-    selectItem: (itemId: string | null) => void;    deleteSelectedItem: () => void;
+  
+  // Persistence state
+  currentLayoutId: string | null;
+  hasPendingDraft: boolean;
+  draftMetadata: {
+    layoutId: string;
+    timestamp: string;
+  } | null;
+  
+  // Sync status for UI feedback
+  syncStatus: 'idle' | 'syncing' | 'synced';
+  lastSynced: Date | null;
+  
+  findStackLocation: (itemIdOrStackId: string) => StackLocation | null;  actions: {
+    selectItem: (itemId: string | null) => void;
+    deleteSelectedItem: () => void;
     removeItemsById: (itemIds: string[]) => void;
     duplicateAndAddNew: () => void;
     duplicateAndStack: () => void;
@@ -24,10 +37,111 @@ interface PlanogramState {
     stackItem: (draggedStackId: string, targetStackId: string) => void;
     undo: () => void;
     redo: () => void;
+    
+    // Persistence actions
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator) => void;
+    restoreDraft: () => void;
+    dismissDraft: () => void;
+    clearDraft: () => void;
+    manualSync: () => void;
   }
 }
 
 const generateUniqueId = (skuId: string) => `${skuId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// ============================================================================
+// LocalStorage Utilities (Unified in Store)
+// ============================================================================
+
+const DRAFT_EXPIRY_DAYS = 2;
+const getStorageKey = (layoutId: string) => `planogram-draft-${layoutId}`;
+
+interface StoredDraft {
+  refrigerator: Refrigerator;
+  history: Refrigerator[];
+  historyIndex: number;
+  layoutId: string;
+  timestamp: string;
+}
+
+// Save full state to localStorage
+const saveToLocalStorage = (
+  refrigerator: Refrigerator,
+  history: Refrigerator[],
+  historyIndex: number,
+  layoutId: string
+): void => {
+  try {
+    const key = getStorageKey(layoutId);
+    const draft: StoredDraft = {
+      refrigerator,
+      history,
+      historyIndex,
+      layoutId,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch (error) {
+    console.error('Failed to save to localStorage:', error);
+  }
+};
+
+// Load full state from localStorage
+const loadFromLocalStorage = (layoutId: string): StoredDraft | null => {
+  try {
+    const key = getStorageKey(layoutId);
+    const data = localStorage.getItem(key);
+    if (!data) return null;
+    
+    const draft: StoredDraft = JSON.parse(data);
+    
+    // Check if draft is expired (older than 2 days)
+    const draftDate = new Date(draft.timestamp);
+    const now = new Date();
+    const daysDiff = (now.getTime() - draftDate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (daysDiff > DRAFT_EXPIRY_DAYS) {
+      // Draft is expired, clear it
+      localStorage.removeItem(key);
+      return null;
+    }
+    
+    return draft;
+  } catch (error) {
+    console.error('Failed to load from localStorage:', error);
+    return null;
+  }
+};
+
+// Clear draft from localStorage
+const clearLocalStorage = (layoutId: string): void => {
+  try {
+    const key = getStorageKey(layoutId);
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.error('Failed to clear localStorage:', error);
+  }
+};
+
+// Debounced auto-save (1 second delay)
+let saveTimeout: NodeJS.Timeout | null = null;
+const debouncedPersist = (
+  refrigerator: Refrigerator,
+  history: Refrigerator[],
+  historyIndex: number,
+  layoutId: string
+): void => {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  
+  saveTimeout = setTimeout(() => {
+    saveToLocalStorage(refrigerator, history, historyIndex, layoutId);
+  }, 1000);
+};
+
+// ============================================================================
+// History Management Helpers
+// ============================================================================
 
 // Helper function to save state to history BEFORE making changes
 const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], historyIndex: number): { history: Refrigerator[]; historyIndex: number } => {
@@ -67,6 +181,14 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   selectedItemId: null,
   history: [],
   historyIndex: -1,
+  
+  // Persistence state
+  currentLayoutId: null,
+  hasPendingDraft: false,
+  draftMetadata: null,
+  syncStatus: 'idle',
+  lastSynced: null,
+  
   findStackLocation: (itemIdOrStackId: string) => {
     const { refrigerator } = get();
     for (const rowId in refrigerator) {
@@ -295,8 +417,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           return state;
         }
       });
-    },
-    redo: () => {
+    },    redo: () => {
       set(state => {
         if (state.historyIndex < state.history.length - 1) {
           const newIndex = state.historyIndex + 1;
@@ -312,6 +433,189 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           return state;
         }
       });
-    }
+    },
+    
+    // ========================================
+    // Persistence Actions
+    // ========================================
+    
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator) => {
+      const draft = loadFromLocalStorage(layoutId);
+      
+      if (draft) {
+        // Draft exists - load it and show restore prompt
+        set({
+          refrigerator: draft.refrigerator,
+          history: draft.history,
+          historyIndex: draft.historyIndex,
+          currentLayoutId: layoutId,
+          hasPendingDraft: true,
+          draftMetadata: {
+            layoutId: draft.layoutId,
+            timestamp: draft.timestamp
+          },
+          syncStatus: 'idle',
+          selectedItemId: null
+        });
+        toast.success('Draft found! You can restore your previous work.', { duration: 4000 });
+      } else {
+        // No draft - use initial layout
+        set({
+          refrigerator: initialLayout,
+          history: [produce(initialLayout, () => {})],
+          historyIndex: 0,
+          currentLayoutId: layoutId,
+          hasPendingDraft: false,
+          draftMetadata: null,
+          syncStatus: 'idle',
+          selectedItemId: null        });
+      }
+    },
+    
+    switchLayout: (layoutId: string, newLayout: Refrigerator) => {
+      const state = get();
+      
+      // Save current layout first
+      if (state.currentLayoutId && state.refrigerator) {
+        saveToLocalStorage(
+          state.refrigerator,
+          state.history,
+          state.historyIndex,
+          state.currentLayoutId
+        );
+      }
+      
+      // Load new layout
+      const draft = loadFromLocalStorage(layoutId);
+      
+      if (draft) {
+        // Draft exists for new layout
+        set({
+          refrigerator: draft.refrigerator,
+          history: draft.history,
+          historyIndex: draft.historyIndex,
+          currentLayoutId: layoutId,
+          hasPendingDraft: true,
+          draftMetadata: {
+            layoutId: draft.layoutId,
+            timestamp: draft.timestamp
+          },
+          selectedItemId: null
+        });
+        toast.success('Draft found for this layout!', { duration: 3000 });
+      } else {
+        // No draft - use initial layout
+        set({
+          refrigerator: newLayout,
+          history: [produce(newLayout, () => {})],
+          historyIndex: 0,
+          currentLayoutId: layoutId,
+          hasPendingDraft: false,
+          draftMetadata: null,
+          selectedItemId: null        });
+      }
+    },
+    
+    restoreDraft: () => {
+      set({
+        hasPendingDraft: false,
+        draftMetadata: null,
+        syncStatus: 'synced',
+        lastSynced: new Date()
+      });
+      
+      toast.success('Draft restored successfully!');
+      
+      // Reset sync status after 2 seconds
+      setTimeout(() => {
+        set({ syncStatus: 'idle' });
+      }, 2000);
+    },
+    
+    dismissDraft: () => {
+      const state = get();
+      
+      // Delete draft from localStorage
+      if (state.currentLayoutId) {
+        clearLocalStorage(state.currentLayoutId);
+      }
+      
+      // Keep current state, just clear the prompt
+      set({
+        hasPendingDraft: false,
+        draftMetadata: null
+      });
+      
+      toast.success('Draft dismissed');
+    },
+    
+    clearDraft: () => {
+      set(state => {
+        // Create empty refrigerator (keep structure, clear all stacks)
+        const emptyFridge = produce(state.refrigerator, draft => {
+          Object.keys(draft).forEach(rowId => {
+            draft[rowId].stacks = [];
+          });
+        });
+        
+        // Add to history for undo
+        const newHistory = state.history.slice(0, state.historyIndex + 1);
+        newHistory.push(produce(emptyFridge, () => {}));
+        const limitedHistory = newHistory.slice(-50);
+        
+        // Trigger auto-save
+        if (state.currentLayoutId) {
+          debouncedPersist(
+            emptyFridge,
+            limitedHistory,
+            limitedHistory.length - 1,
+            state.currentLayoutId
+          );
+        }
+        
+        return {
+          refrigerator: emptyFridge,
+          history: limitedHistory,
+          historyIndex: limitedHistory.length - 1,
+          selectedItemId: null
+        };
+      });      
+      toast.success('All items cleared');
+    },
+    
+    manualSync: () => {
+      const state = get();
+      
+      if (!state.currentLayoutId) {
+        toast.error('No layout loaded');
+        return;
+      }
+      
+      // Set syncing status
+      set({ syncStatus: 'syncing' });
+      
+      // Save immediately (no debounce)
+      saveToLocalStorage(
+        state.refrigerator,
+        state.history,
+        state.historyIndex,
+        state.currentLayoutId
+      );
+      
+      // Simulate brief delay for UX (500ms)
+      setTimeout(() => {
+        set({ 
+          syncStatus: 'synced',
+          lastSynced: new Date()
+        });
+        
+        toast.success('Changes synced!');
+        
+        // Reset to idle after 2 seconds
+        setTimeout(() => {
+          set({ syncStatus: 'idle' });
+        }, 2000);
+      }, 500);
+    },
   },
 }));
