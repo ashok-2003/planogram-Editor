@@ -512,13 +512,32 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           selectedItemId: null        });
       }
     },
-    
-    restoreDraft: () => {
+      restoreDraft: () => {
+      const state = get();
+      
+      if (!state.currentLayoutId) {
+        toast.error('No layout loaded');
+        return;
+      }
+      
+      // Load draft from localStorage
+      const draft = loadFromLocalStorage(state.currentLayoutId);
+      
+      if (!draft) {
+        toast.error('No draft found to restore');
+        return;
+      }
+      
+      // Restore the draft data
       set({
+        refrigerator: draft.refrigerator,
+        history: draft.history,
+        historyIndex: draft.historyIndex,
         hasPendingDraft: false,
         draftMetadata: null,
         syncStatus: 'synced',
-        lastSynced: new Date()
+        lastSynced: new Date(),
+        selectedItemId: null
       });
       
       toast.success('Draft restored successfully!');

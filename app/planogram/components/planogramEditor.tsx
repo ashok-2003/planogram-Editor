@@ -534,28 +534,36 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         <DragOverlay>
           {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
         </DragOverlay>
-      </DndContext>
-      <AnimatePresence>
+      </DndContext>      <AnimatePresence>
         {isRulesEnabled && conflictIds.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
+          <motion.div 
+            key="conflict-panel"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 20 }}
+          >
             <ConflictPanel 
               conflictCount={conflictIds.length}
               onRemove={() => actions.removeItemsById(conflictIds)}
               onDisableRules={() => setIsRulesEnabled(false)}
             />
           </motion.div>
-        )}        {showModePrompt && (
+        )}
+        {showModePrompt && (
           <motion.div
+            key="mode-prompt"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
           >
             <ModePrompt onDismiss={() => setShowModePrompt(false)} />
-          </motion.div>        )}
+          </motion.div>
+        )}
         {/* NEW: Restore prompt using store state (Phase 10) */}
-        {hasPendingDraft && (
+        {/* {hasPendingDraft && (
           <motion.div
+            key="restore-prompt"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
@@ -567,7 +575,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               onDismiss={actions.dismissDraft}
             />
           </motion.div>
-        )}
+        )} */}
       </AnimatePresence>
     </div>
   );
