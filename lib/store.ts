@@ -163,13 +163,18 @@ const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], hist
 };
 
 // Helper function to push new state after modification
-const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyIndex: number): { history: Refrigerator[]; historyIndex: number } => {
+const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyIndex: number, currentLayoutId: string | null): { history: Refrigerator[]; historyIndex: number } => {
   // Remove any future history if we're not at the end
-  const newHistory = history.slice(0, historyIndex + 1);
-  // Add the new state (Immer produces immutable draft, so we can add directly)
+  const newHistory = history.slice(0, historyIndex + 1);  // Add the new state (Immer produces immutable draft, so we can add directly)
   newHistory.push(produce(newState, () => {}));
   // Limit history to last 50 states to prevent memory issues
   const limitedHistory = newHistory.slice(-50);
+  
+  // Auto-save to localStorage with debounce (Phase 8)
+  if (currentLayoutId) {
+    debouncedPersist(newState, limitedHistory, limitedHistory.length - 1, currentLayoutId);
+  }
+  
   return {
     history: limitedHistory,
     historyIndex: limitedHistory.length - 1
@@ -226,10 +231,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
               // After filtering items, filter out any stacks that are now empty
               .filter((stack: Item[]) => stack.length > 0);
           }
-        });
-
-        if (itemsRemoved) {
-          const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+        });        if (itemsRemoved) {
+          const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
           return { refrigerator: newFridge, selectedItemId: null, ...historyUpdate };
         }
         return state; // No changes
@@ -253,9 +256,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             if (currentWidth + newItem.width <= row.capacity) {
                 const newFridge = produce(state.refrigerator, draft => {
                     draft[location.rowId].stacks.push([newItem]);
-                });
-                toast.success('Item duplicated successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+                });                toast.success('Item duplicated successfully!');
+                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
                 return { refrigerator: newFridge, ...historyUpdate };
             } else {
                 toast.error('Not enough space in the row to duplicate!');
@@ -281,9 +283,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             if (currentStackHeight + newItem.height <= row.maxHeight) {
                 const newFridge = produce(state.refrigerator, draft => {
                     draft[location.rowId].stacks[location.stackIndex].push(newItem);
-                });
-                toast.success('Item stacked successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+                });                toast.success('Item stacked successfully!');
+                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
                 return { refrigerator: newFridge, ...historyUpdate };
             } else {
                 toast.error('Cannot stack - exceeds maximum row height!');
@@ -326,9 +327,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         
         const newFridge = produce(state.refrigerator, draft => {
           draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
-        });
-        toast.success('Item replaced successfully!');
-        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+        });        toast.success('Item replaced successfully!');
+        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
         return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
       });
     },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
@@ -340,13 +340,12 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             
             const newFridge = produce(state.refrigerator, draft => {
               if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
-                draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);
-              } else {
+                draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);              } else {
                 draft[targetRowId].stacks.push([newItem]);
               }
             });
             
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
             return { refrigerator: newFridge, ...historyUpdate };
         });
     },    moveItem: (itemId, targetRowId, targetStackIndex) => {
@@ -362,13 +361,12 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
               
               const targetRow = draft[targetRowId];
               if (targetStackIndex !== undefined) {
-                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
-              } else {
+                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);              } else {
                   targetRow.stacks.push(draggedStack);
               }
             });
 
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
             return { refrigerator: newFridge, ...historyUpdate };
         });
     },    reorderStack: (rowId, oldIndex, newIndex) => {
@@ -376,7 +374,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const newFridge = produce(state.refrigerator, draft => {
               draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
             });
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
             return { refrigerator: newFridge, ...historyUpdate };
         });
     },    stackItem: (draggedStackId, targetStackId) => {
@@ -393,12 +391,11 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const draggedStack = row.stacks[draggedLocation.stackIndex];
             const itemToStack = draggedStack[0];
             
-            const newFridge = produce(state.refrigerator, draft => {
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+            const newFridge = produce(state.refrigerator, draft => {              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
               draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
             });
 
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex);
+            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
             return { refrigerator: newFridge, ...historyUpdate };
         });
     },    undo: () => {
