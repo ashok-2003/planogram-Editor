@@ -3,8 +3,9 @@ import { Refrigerator, Item, Sku } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
 import toast from 'react-hot-toast';
 import { produce } from 'immer';
+import { PIXELS_PER_MM } from './config';
 
-type StackLocation = { rowId: string; stackIndex: number; };
+type StackLocation = { rowId: string; stackIndex: number; itemIndex: number; };
 
 interface PlanogramState {
   refrigerator: Refrigerator;
@@ -23,8 +24,7 @@ interface PlanogramState {
   // Sync status for UI feedback
   syncStatus: 'idle' | 'syncing' | 'synced';
   lastSynced: Date | null;
-  
-  findStackLocation: (itemIdOrStackId: string) => StackLocation | null;  actions: {
+    findStackLocation: (itemIdOrStackId: string) => StackLocation | null;  actions: {
     selectItem: (itemId: string | null) => void;
     deleteSelectedItem: () => void;
     removeItemsById: (itemIds: string[]) => void;
@@ -37,6 +37,9 @@ interface PlanogramState {
     stackItem: (draggedStackId: string, targetStackId: string) => void;
     undo: () => void;
     redo: () => void;
+    
+    // NEW: Update blank space width
+    updateBlankWidth: (itemId: string, newWidthMM: number) => void;
     
     // Persistence actions
     initializeLayout: (layoutId: string, initialLayout: Refrigerator) => void;
@@ -193,14 +196,19 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   draftMetadata: null,
   syncStatus: 'idle',
   lastSynced: null,
-  
-  findStackLocation: (itemIdOrStackId: string) => {
+    findStackLocation: (itemIdOrStackId: string) => {
     const { refrigerator } = get();
     for (const rowId in refrigerator) {
       for (let stackIndex = 0; stackIndex < refrigerator[rowId].stacks.length; stackIndex++) {
         const stack = refrigerator[rowId].stacks[stackIndex];
-        if (stack[0]?.id === itemIdOrStackId || stack.some(i => i.id === itemIdOrStackId)) {
-          return { rowId, stackIndex };
+        // Check if it's a stack ID (first item) or find item in stack
+        if (stack[0]?.id === itemIdOrStackId) {
+          return { rowId, stackIndex, itemIndex: 0 };
+        }
+        // Find item in stack
+        const itemIndex = stack.findIndex(i => i.id === itemIdOrStackId);
+        if (itemIndex !== -1) {
+          return { rowId, stackIndex, itemIndex };
         }
       }
     }
@@ -330,13 +338,21 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         });        toast.success('Item replaced successfully!');
         const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
         return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
-      });
-    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
+      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
         set(state => {
             const targetRow = state.refrigerator[targetRowId];
             if(!targetRow) return state;
             
-            const newItem: Item = { ...sku, id: generateUniqueId(sku.skuId) };
+            // NEW: For BLANK spaces, set height to match row's maxHeight
+            const newItem: Item = { 
+              ...sku, 
+              id: generateUniqueId(sku.skuId),
+              // Auto-fill height for blank spaces
+              height: sku.productType === 'BLANK' ? targetRow.maxHeight : sku.height,
+              heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
+              widthMM: sku.widthMM,
+              customWidth: sku.productType === 'BLANK' ? sku.width : undefined
+            };
             
             const newFridge = produce(state.refrigerator, draft => {
               if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
@@ -348,7 +364,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
             return { refrigerator: newFridge, ...historyUpdate };
         });
-    },    moveItem: (itemId, targetRowId, targetStackIndex) => {
+    },moveItem: (itemId, targetRowId, targetStackIndex) => {
         set(state => {
             const { findStackLocation } = get();
             const location = findStackLocation(itemId);
@@ -427,8 +443,67 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           };
         } else {
           toast.error('Nothing to redo');
+          return state;        }
+      });
+    },
+    
+    // ========================================
+    // Blank Space Width Update
+    // ========================================
+    
+    updateBlankWidth: (itemId: string, newWidthMM: number) => {
+      set(state => {
+        const { findStackLocation } = get();
+        const location = findStackLocation(itemId);
+        
+        if (!location) {
+          toast.error('Item not found');
           return state;
         }
+        
+        const item = state.refrigerator[location.rowId].stacks[location.stackIndex][location.itemIndex];
+        
+        // Only allow width update for BLANK spaces
+        if (item.productType !== 'BLANK') {
+          toast.error('Width can only be adjusted for blank spaces');
+          return state;
+        }
+        
+        const row = state.refrigerator[location.rowId];
+        
+        // Calculate used width (excluding current item)
+        const usedWidth = row.stacks.reduce((sum, stack) => {
+          return sum + stack.reduce((s, stackItem) => 
+            stackItem.id === itemId ? 0 : s + stackItem.width, 0
+          );
+        }, 0);
+        
+        const availableWidth = row.capacity - usedWidth;
+        
+        // Clamp to min/max (min: 10mm, max: available space)
+        const MIN_WIDTH_MM = 10;
+        const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
+        const MAX_WIDTH = availableWidth;
+        
+        const newWidth = Math.round(newWidthMM * PIXELS_PER_MM);
+        const clampedWidth = Math.max(MIN_WIDTH, Math.min(newWidth, MAX_WIDTH));
+        const clampedWidthMM = clampedWidth / PIXELS_PER_MM;
+        
+        // If no change, don't update
+        if (clampedWidth === item.width) {
+          return state;
+        }
+        
+        // Update item width
+        const newFridge = produce(state.refrigerator, draft => {
+          const targetItem = draft[location.rowId].stacks[location.stackIndex][location.itemIndex];
+          targetItem.width = clampedWidth;
+          targetItem.widthMM = clampedWidthMM;
+          targetItem.customWidth = clampedWidth;
+        });
+        
+        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
+        return { refrigerator: newFridge, ...historyUpdate };
       });
     },
     

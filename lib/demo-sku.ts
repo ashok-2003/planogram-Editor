@@ -112,16 +112,16 @@ export const demoSkus: Sku[] = [
     width: Math.round(83 * PIXELS_PER_MM),
     height: Math.round(278 * PIXELS_PER_MM),
     imageUrl: './sku/MIRINDA-ORANGE-1.25L.png',
-    constraints: { stackable: false, deletable: true },
-  },
+    constraints: { stackable: false, deletable: true },  },
   {
     skuId: 'sku-blank-space',
     name: 'Blank Space',
     productType: 'BLANK',
-    widthMM: 40, heightMM: 100, // 100mm wide space
-    width: Math.round(40 * PIXELS_PER_MM),
+    widthMM: 10, // Default 10mm width
+    heightMM: 100, // Will be overridden by row height
+    width: Math.round(10 * PIXELS_PER_MM),
     height: Math.round(100 * PIXELS_PER_MM),
-    imageUrl: 'https://placehold.co/40x100/fde2e2/cf5b5b?text=Ey',
+    imageUrl: 'https://placehold.co/10x100/e0e7ff/6366f1?text=', // Blue tint for visibility
     constraints: { stackable: false, deletable: true },
   },
   {

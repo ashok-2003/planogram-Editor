@@ -4,6 +4,7 @@ import { usePlanogramStore } from '@/lib/store';
 import { Item } from '@/lib/types';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
+import { PIXELS_PER_MM } from '@/lib/config';
 
 interface ItemProps {
   item: Item;
@@ -65,8 +66,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
           }}
         />
       )}
-      
-      <motion.img 
+        <motion.img 
         src={item.imageUrl} 
         alt={item.name} 
         className="object-cover w-full h-full pointer-events-none relative z-10"
@@ -75,6 +75,15 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
           filter: "brightness(1.1) contrast(1.05)",
           transition: { duration: 0.2 }
         }}      />
+      
+      {/* NEW: Width measurement overlay for BLANK spaces */}
+      {item.productType === 'BLANK' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className="bg-blue-600 text-white px-2 py-1 rounded-md shadow-lg text-xs font-bold border-2 border-white">
+            {Math.round(item.width / PIXELS_PER_MM)}mm
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }, (prevProps, nextProps) => {
