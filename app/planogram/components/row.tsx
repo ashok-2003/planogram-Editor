@@ -76,11 +76,10 @@ export const RowComponent = React.memo(function RowComponent({
             Cannot drop here
           </div>
         </div>
-      )}
-
-      <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        {/* UPDATED: The minHeight is now set dynamically from the row's data for realism */}
-        <div className="flex items-end gap-px h-full relative z-10" style={{ minHeight: `${row.maxHeight}px`}}>          {row.stacks.map((stack, index) => (
+      )}      <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
+        {/* Use exact height from data (not minHeight) */}
+        <div className="flex items-end gap-px relative z-10" style={{ height: `${row.maxHeight}px` }}>
+          {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
               <AnimatePresence>
                 {showGhost && dropIndicator?.index === index && (
