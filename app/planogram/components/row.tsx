@@ -48,16 +48,16 @@ export const RowComponent = React.memo(function RowComponent({
     () => isDragging && !isValidRowTarget && !hasValidStackTargets,
     [isDragging, isValidRowTarget, hasValidStackTargets]
   );
-
   return (
     <motion.div 
       ref={setNodeRef}
       style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
         "relative transition-all duration-300 ease-out w-full shadow-lg",
-        "bg-gradient-to-b from-gray-300/10 via-gray-500/20 to-gray-500/20 border",
+        "bg-gradient-to-b from-gray-300/10 via-gray-500/20 to-gray-500/20",
+        "border-8 border-gray-800",  // Thick black border like real refrigerator shelf dividers
         {
-          "border-gray-600": !isDragging,
+          "border-gray-800": !isDragging,
           "ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500": isValidRowTarget,
           "opacity-40": isDisabled,
         }
