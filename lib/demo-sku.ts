@@ -121,7 +121,7 @@ export const demoSkus: Sku[] = [
     heightMM: 100, // Will be overridden by row height
     width: Math.round(25 * PIXELS_PER_MM),
     height: Math.round(100 * PIXELS_PER_MM),
-    imageUrl: 'https://placehold.co/25x100/e0e7ff/6366f1?text=E', // Blue tint for visibility
+    imageUrl: 'https://placehold.co/25x100/e0e7ff/6366f1?text=.', // Blue tint for visibility
     constraints: { stackable: false, deletable: true },
   },
   {
