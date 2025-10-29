@@ -22,12 +22,11 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
 
   return (
     <motion.div
-      onClick={handleSelect}
-      style={{ width: `${item.width}px`, height: `${item.height}px` }}
+      onClick={handleSelect}      style={{ width: `${item.width}px`, height: `${item.height}px` }}
       className={clsx(
         'flex items-center justify-center cursor-pointer relative',
         {
-          'ring-4 ring-blue-500 ring-offset-2 ring-offset-gray-800 rounded-md': isSelected,
+          'ring-4 ring-blue-500 rounded-md': isSelected,
           'opacity-90 hover:opacity-100': !isSelected,
         }
       )}

@@ -256,12 +256,13 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const row = state.refrigerator[location.rowId];
             const stack = row.stacks[location.stackIndex];
             const item = stack.find((i: Item) => i.id === selectedItemId);
-            if (!item) return state;
-
-            const newItem = { ...item, id: generateUniqueId(item.skuId) };
+            if (!item) return state;            const newItem = { ...item, id: generateUniqueId(item.skuId) };
             const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
             
-            if (currentWidth + newItem.width <= row.capacity) {
+            // Account for gaps between stacks (1px per gap)
+            const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
+            
+            if (currentWidth + newItem.width + gapWidth <= row.capacity) {
                 const newFridge = produce(state.refrigerator, draft => {
                     draft[location.rowId].stacks.push([newItem]);
                 });                toast.success('Item duplicated successfully!');
@@ -318,11 +319,14 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
           return state;
         }
-        
-        // Always check size constraints (width and height)
+          // Always check size constraints (width and height)
         const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
         const widthDifference = newItem.width - oldItem.width;
-        if (currentWidth + widthDifference > row.capacity) {
+        
+        // Account for gaps between stacks (1px per gap)
+        const gapWidth = Math.max(0, row.stacks.length - 1);
+        
+        if (currentWidth + widthDifference + gapWidth > row.capacity) {
           toast.error('Cannot replace: The new item is too wide for this row.');
           return state;
         }
@@ -470,14 +474,17 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         }
         
         const row = state.refrigerator[location.rowId];
-        
-        // Calculate used width (excluding current item)
+          // Calculate used width (excluding current item)
         const usedWidth = row.stacks.reduce((sum, stack) => {
           return sum + stack.reduce((s, stackItem) => 
             stackItem.id === itemId ? 0 : s + stackItem.width, 0
           );
         }, 0);
-          const availableWidth = row.capacity - usedWidth;
+        
+        // Account for gaps between stacks (1px per gap)
+        const gapWidth = Math.max(0, row.stacks.length - 1);
+        
+        const availableWidth = row.capacity - usedWidth - gapWidth;
         
         // Clamp to min/max (min: 25mm, max: available space)
         const MIN_WIDTH_MM = 25;

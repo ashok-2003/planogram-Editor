@@ -75,13 +75,26 @@ export function runValidation({
         || row.allowedProductTypes.includes(draggedItem.productType);
         
       if (!isRowAllowedByPlacement) continue;
-    }
+    }    if (draggedEntityHeight > row.maxHeight) continue;
 
-    if (draggedEntityHeight > row.maxHeight) continue;
-
+    // Calculate current width usage
     const currentWidth = row.stacks.reduce((sum, stack) => sum + (stack[0]?.width || 0), 0);
-    const widthWithoutActiveItem = originLocation?.rowId === rowId ? currentWidth - draggedItemWidth : currentWidth;
-    if (widthWithoutActiveItem + draggedItemWidth > row.capacity) continue;
+    
+    // Account for gaps between stacks (gap-px = 1px per gap)
+    const currentGapWidth = Math.max(0, row.stacks.length - 1);
+    
+    // If moving from same row, don't count the dragged item and adjust gap count
+    const widthWithoutActiveItem = originLocation?.rowId === rowId 
+      ? currentWidth - draggedItemWidth 
+      : currentWidth;
+    
+    const gapWidthAfterMove = originLocation?.rowId === rowId 
+      ? currentGapWidth // Same number of stacks (moving within row)
+      : currentGapWidth + 1; // One more stack (moving from different row)
+    
+    // Check if there's enough capacity
+    const totalWidthNeeded = widthWithoutActiveItem + draggedItemWidth + gapWidthAfterMove;
+    if (totalWidthNeeded > row.capacity) continue;
     
     validRowIds.add(rowId);
   }
