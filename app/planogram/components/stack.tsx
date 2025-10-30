@@ -65,7 +65,7 @@ export const StackComponent = React.memo(function StackComponent({
       {...listeners}
       layout="position"
       className={clsx(
-        "flex flex-col-reverse items-center relative transition-all duration-300",
+        "flex flex-col items-center justify-center relative transition-all duration-300",
         { "opacity-40": isVisuallyDisabled && !isStackHighlight }
       )}
     >      {/* Green glow effect for stacking */}

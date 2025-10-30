@@ -54,6 +54,20 @@ interface PlanogramState {
 const generateUniqueId = (skuId: string) => `${skuId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // ============================================================================
+// Helper: Get Stack Width (widest item in stack)
+// ============================================================================
+
+/**
+ * Get the width footprint of a stack.
+ * For stacked items, we need the WIDEST item's width (max), not the first item.
+ * This ensures proper width calculation regardless of stack order.
+ */
+const getStackWidth = (stack: Item[]): number => {
+  if (stack.length === 0) return 0;
+  return Math.max(...stack.map(item => item.width));
+};
+
+// ============================================================================
 // LocalStorage Utilities (Unified in Store)
 // ============================================================================
 
@@ -257,7 +271,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             const stack = row.stacks[location.stackIndex];
             const item = stack.find((i: Item) => i.id === selectedItemId);
             if (!item) return state;            const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
             
             // Account for gaps between stacks (1px per gap)
             const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
@@ -318,9 +332,8 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
           toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
           return state;
-        }
-          // Always check size constraints (width and height)
-        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + (s[0]?.width || 0), 0);
+        }          // Always check size constraints (width and height)
+        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
         const widthDifference = newItem.width - oldItem.width;
         
         // Account for gaps between stacks (1px per gap)
@@ -409,13 +422,13 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
               const row = state.refrigerator[draggedLocation.rowId];
             const draggedStack = row.stacks[draggedLocation.stackIndex];
             const itemToStack = draggedStack[0];
-            
-            const newFridge = produce(state.refrigerator, draft => {
+              const newFridge = produce(state.refrigerator, draft => {
               // Add item to target stack
               draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
               
-              // Auto-sort by width: widest at bottom (descending order)
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => b.width - a.width);
+              // Auto-sort by width: ASCENDING (narrowest first in array)
+              // With flex-col-reverse: array[0] (narrow) shows at TOP, array[last] (wide) shows at BOTTOM
+              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => a.width - b.width);
               
               // Remove the original stack
               draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
