@@ -406,12 +406,18 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
                 return state;
             }
-            
-            const row = state.refrigerator[draggedLocation.rowId];
+              const row = state.refrigerator[draggedLocation.rowId];
             const draggedStack = row.stacks[draggedLocation.stackIndex];
             const itemToStack = draggedStack[0];
             
-            const newFridge = produce(state.refrigerator, draft => {              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+            const newFridge = produce(state.refrigerator, draft => {
+              // Add item to target stack
+              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+              
+              // Auto-sort by width: widest at bottom (descending order)
+              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => b.width - a.width);
+              
+              // Remove the original stack
               draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
             });
 

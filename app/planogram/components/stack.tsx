@@ -68,15 +68,14 @@ export const StackComponent = React.memo(function StackComponent({
         "flex flex-col-reverse items-center relative transition-all duration-300",
         { "opacity-40": isVisuallyDisabled && !isStackHighlight }
       )}
-    >
-      {/* Glow effect for stacking */}
+    >      {/* Green glow effect for stacking */}
       <AnimatePresence>
         {isStackHighlight && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 bg-blue-400/20 rounded-lg blur-sm -z-10"
+            className="absolute inset-0 bg-green-400/30 rounded-lg blur-sm -z-10 ring-2 ring-green-500"
             transition={{ duration: 0.2 }}
           />
         )}
