@@ -664,8 +664,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
       
       toast.success('Draft dismissed');
     },
-    
-    clearDraft: () => {
+      clearDraft: () => {
       set(state => {
         // Create empty refrigerator (keep structure, clear all stacks)
         const emptyFridge = produce(state.refrigerator, draft => {
@@ -674,29 +673,22 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           });
         });
         
-        // Add to history for undo
-        const newHistory = state.history.slice(0, state.historyIndex + 1);
-        newHistory.push(produce(emptyFridge, () => {}));
-        const limitedHistory = newHistory.slice(-50);
-        
-        // Trigger auto-save
+        // CLEAR localStorage completely (true clear - no undo)
         if (state.currentLayoutId) {
-          debouncedPersist(
-            emptyFridge,
-            limitedHistory,
-            limitedHistory.length - 1,
-            state.currentLayoutId
-          );
+          clearLocalStorage(state.currentLayoutId);
         }
         
+        // Reset to fresh history state (cannot undo clear)
         return {
           refrigerator: emptyFridge,
-          history: limitedHistory,
-          historyIndex: limitedHistory.length - 1,
-          selectedItemId: null
+          history: [produce(emptyFridge, () => {})], // Fresh history with only empty state
+          historyIndex: 0,
+          selectedItemId: null,
+          hasPendingDraft: false,
+          draftMetadata: null
         };
       });      
-      toast.success('All items cleared');
+      toast.success('All items cleared - cannot undo', { duration: 3000 });
     },
     
     manualSync: () => {
