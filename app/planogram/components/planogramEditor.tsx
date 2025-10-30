@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
 import { SkuPalette } from './SkuPalette';
@@ -12,6 +12,9 @@ import { StatePreview } from './statePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
+import toast from 'react-hot-toast';
+
+import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
@@ -99,10 +102,89 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
         <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
           Disable Rules
         </button>
+      </div>    </div>
+  );
+}
+
+// --- UI Component for Restore Draft Prompt ---
+function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: Date | null; onRestore: () => void; onDismiss: () => void; }) {
+  const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : 'recently';
+  
+  return (
+    <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-blue-500 text-white p-4 rounded-lg shadow-2xl flex items-center gap-4 z-50 max-w-md">
+      <div className="flex-shrink-0">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-bold">Unsaved Work Found!</p>
+        <p className="text-xs opacity-90">You have changes from {timeAgo}</p>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={onRestore} className="bg-white text-blue-500 px-3 py-1 rounded font-semibold text-sm hover:bg-blue-50 transition-colors">
+          Restore
+        </button>
+        <button onClick={onDismiss} className="bg-blue-600 text-white px-3 py-1 rounded font-semibold text-sm hover:bg-blue-700 transition-colors">
+          Dismiss
+        </button>
       </div>
     </div>
   );
 }
+
+// --- UI Component for Save Indicator ---
+function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime: Date | null; onManualSave: () => void; isSaving: boolean }) {
+  const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : null;
+  
+  return (
+    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <button 
+        onClick={onManualSave}
+        disabled={isSaving}
+        className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm ${
+          isSaving ? 'opacity-75 cursor-not-allowed' : ''
+        }`}
+      >
+        {isSaving ? (
+          <>
+            <Spinner size="sm" color="white" />
+            <span>Saving...</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            Save Now
+          </>
+        )}
+      </button>
+      {timeAgo && (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>Last saved: {timeAgo}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper function to format time ago
+function getTimeAgo(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
 // ... (LayoutSelector remains the same)
 interface LayoutSelectorProps {
   layouts: { [key: string]: { name: string; layout: Refrigerator } };
@@ -151,6 +233,14 @@ interface PlanogramEditorProps {
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+  const history = usePlanogramStore((state) => state.history);
+  const historyIndex = usePlanogramStore((state) => state.historyIndex);
+  
+  // NEW: Access persistence state from store (Phase 9)
+  const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
+  const syncStatus = usePlanogramStore((state) => state.syncStatus);
+  const lastSynced = usePlanogramStore((state) => state.lastSynced);
+  
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
@@ -158,49 +248,78 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
-
   const [isRulesEnabled, setIsRulesEnabled] = useState(true);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
-  const [hasMounted, setHasMounted] = useState(false);
-
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+  
+  // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
-    usePlanogramStore.setState({ refrigerator: initialLayout });
-    setHasMounted(true);
-  }, [initialLayout]);
-
+    // Initialize layout on mount
+    actions.initializeLayout(selectedLayoutId, initialLayout);
+    
+    // Simulate minimum loading time for smooth UX
+    const loadingTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+      return () => clearTimeout(loadingTimer);
+  }, []);
+  
+  // Keyboard shortcuts for undo/redo
   useEffect(() => {
-    if (hasMounted && initialLayouts[selectedLayoutId]) {
-      usePlanogramStore.setState({ refrigerator: initialLayouts[selectedLayoutId].layout });
-    }
-  }, [selectedLayoutId, initialLayouts, hasMounted]);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) actions.undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo) actions.redo();
+      }
+      if (e.key === 'Delete' && usePlanogramStore.getState().selectedItemId) {
+        e.preventDefault();
+        actions.deleteSelectedItem();
+      }
+    };
+      window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [canUndo, canRedo, actions]);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, { 
+      activationConstraint: { distance: 8 }
+    })
+  );
+  // Memoize expensive conflict detection computation
   useEffect(() => {
-    if (refrigerator && Object.keys(refrigerator).length > 0) {
+    if (refrigerator && Object.keys(refrigerator).length > 0 && isRulesEnabled) {
       const conflicts = findConflicts(refrigerator);
       setConflictIds(conflicts);
+    } else if (!isRulesEnabled) {
+      setConflictIds([]);
     }
-  }, [refrigerator]);
-
-  function handleLayoutChange(layoutId: string) {
+  }, [refrigerator, isRulesEnabled]);
+  
+  // NEW: Update handler to use store action (Phase 10)
+  const handleLayoutChange = useCallback((layoutId: string) => {
     setSelectedLayoutId(layoutId);
     const newLayout = initialLayouts[layoutId]?.layout;
     if (newLayout) {
-      actions.selectItem(null);
-      usePlanogramStore.setState({ refrigerator: newLayout });
+      actions.switchLayout(layoutId, newLayout);
     }
-  }
+  }, [initialLayouts, actions]);
 
-  function handleModeChange(newMode: 'reorder' | 'stack') {
+  const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
-  }
+  }, []);
 
-  function handleDragStart(event: DragStartEvent) {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setShowModePrompt(false);
     actions.selectItem(null);
     const { active } = event;
@@ -235,12 +354,20 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         refrigerator,
         findStackLocation,
         isRulesEnabled,
-      });
-      setDragValidation(validationResult);
-    }
-  }
+      });      setDragValidation(validationResult);
+    }  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
   
-  function handleDragOver(event: DragOverEvent) {
+  // Throttle ref for dragOver performance optimization
+  const dragOverThrottleRef = useRef<number>(0);
+  
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    // Throttle dragOver to every 16ms (60fps) for better performance
+    const now = Date.now();
+    if (now - dragOverThrottleRef.current < 16) {
+      return;
+    }
+    dragOverThrottleRef.current = now;
+    
     const { active, over } = event;
     if (!over) { setDropIndicator(null); return; }
 
@@ -279,9 +406,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     }
     
     setDropIndicator(null);
-  }
+  }, [interactionMode, findStackLocation, dragValidation]);
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     const activeType = active.data.current?.type;
 
@@ -315,25 +442,78 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           }
           setInvalidModeAttempts(0);
         }
-      }
-    }
-
-    setActiveItem(null);
+      }    }    setActiveItem(null);
     setDropIndicator(null);
-    setDragValidation(null);
+    setDragValidation(null);  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
+  
+  // Show skeleton loader while loading
+  if (isLoading) {
+    return <PlanogramEditorSkeleton />;
   }
   
-  if (!hasMounted) {
-    return null;
-  }
-
   return (
     <div className=''>
-      <div className="flex justify-between items-start text-black">
+      <div className="flex justify-between items-start text-black mb-4">
         <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
         <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
       </div>
-      <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+        <div className="flex justify-between items-center mb-4">
+        <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+        
+        {/* Undo/Redo Controls */}
+        <div className="flex gap-2">
+          <button
+            onClick={actions.undo}
+            disabled={!canUndo}
+            className={clsx(
+              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+              canUndo
+                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            )}
+            title="Undo (Ctrl+Z)"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Undo
+          </button>
+          
+          <button
+            onClick={actions.redo}
+            disabled={!canRedo}
+            className={clsx(
+              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+              canRedo
+                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            )}
+            title="Redo (Ctrl+Y)"
+          >
+            Redo
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />            </svg>
+          </button>
+          
+          {/* NEW: Clear Draft Button (Phase 10) */}
+          <button
+            onClick={actions.clearDraft}
+            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md hover:shadow-lg"
+            title="Clear All Items"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear All
+          </button>
+        </div>
+      </div>
+      
+      {/* NEW: Save Indicator using store state (Phase 10) */}
+      <div className="mb-4">
+        <SaveIndicator lastSaveTime={lastSynced} onManualSave={actions.manualSync} isSaving={syncStatus === 'syncing'} />
+      </div>
+      
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
           <div className="flex flex-col md:flex-row gap-8 max-h-screen">
@@ -343,10 +523,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               dropIndicator={dropIndicator}
               conflictIds={isRulesEnabled ? conflictIds : []}
               selectedLayoutId={selectedLayoutId}
-            />
-          </div>
+            />          </div>
           <div>
-            <InfoPanel availableSkus={initialSkus} />
+            <InfoPanel availableSkus={initialSkus} isRulesEnabled={isRulesEnabled} />
           </div>
           <div className='flex justify-end items-baseline-last'>
             <StatePreview />
@@ -355,10 +534,14 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         <DragOverlay>
           {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
         </DragOverlay>
-      </DndContext>
-      <AnimatePresence>
+      </DndContext>      <AnimatePresence>
         {isRulesEnabled && conflictIds.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
+          <motion.div 
+            key="conflict-panel"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 20 }}
+          >
             <ConflictPanel 
               conflictCount={conflictIds.length}
               onRemove={() => actions.removeItemsById(conflictIds)}
@@ -368,6 +551,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         )}
         {showModePrompt && (
           <motion.div
+            key="mode-prompt"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
@@ -376,6 +560,22 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <ModePrompt onDismiss={() => setShowModePrompt(false)} />
           </motion.div>
         )}
+        {/* NEW: Restore prompt using store state (Phase 10) */}
+        {/* {hasPendingDraft && (
+          <motion.div
+            key="restore-prompt"
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          >
+            <RestorePrompt 
+              lastSaveTime={lastSynced}
+              onRestore={actions.restoreDraft}
+              onDismiss={actions.dismissDraft}
+            />
+          </motion.div>
+        )} */}
       </AnimatePresence>
     </div>
   );

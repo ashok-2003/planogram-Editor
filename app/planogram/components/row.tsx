@@ -1,4 +1,5 @@
 'use client';
+import React, { useMemo } from 'react';
 import { Row as RowType } from '@/lib/types';
 import { StackComponent } from './stack';
 import { useDroppable } from '@dnd-kit/core';
@@ -14,26 +15,49 @@ interface RowProps {
   conflictIds: string[];
 }
 
-export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }: RowProps) {
+export const RowComponent = React.memo(function RowComponent({ 
+  row, 
+  dropIndicator, 
+  dragValidation, 
+  conflictIds 
+}: RowProps) {
   const { setNodeRef, isOver } = useDroppable({ id: row.id, data: { type: 'row', items: row.stacks } });
   
-  const stackIds = row.stacks.map(stack => stack[0]?.id).filter(Boolean);
-  const showGhost = dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id;
+  const stackIds = useMemo(
+    () => row.stacks.map(stack => stack[0]?.id).filter(Boolean),
+    [row.stacks]
+  );
+  
+  const showGhost = useMemo(
+    () => dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id,
+    [dropIndicator, row.id]
+  );
 
   const isDragging = !!dragValidation;
-  const isValidRowTarget = isDragging && dragValidation.validRowIds.has(row.id);
-  const hasValidStackTargets = isDragging && row.stacks.some(stack => dragValidation.validStackTargetIds.has(stack[0].id));
-  const isDisabled = isDragging && !isValidRowTarget && !hasValidStackTargets;
-
+  const isValidRowTarget = useMemo(
+    () => isDragging && dragValidation?.validRowIds.has(row.id),
+    [isDragging, dragValidation, row.id]
+  );
+  
+  const hasValidStackTargets = useMemo(
+    () => isDragging && row.stacks.some(stack => dragValidation?.validStackTargetIds.has(stack[0].id)),
+    [isDragging, row.stacks, dragValidation]
+  );
+  
+  const isDisabled = useMemo(
+    () => isDragging && !isValidRowTarget && !hasValidStackTargets,
+    [isDragging, isValidRowTarget, hasValidStackTargets]
+  );
   return (
     <motion.div 
       ref={setNodeRef}
       style={{ maxWidth: `${row.capacity}px`, width: '100%' }}
       className={clsx(
         "relative transition-all duration-300 ease-out w-full shadow-lg",
-        "bg-gradient-to-b from-gray-300/10 via-gray-500/20 to-gray-500/20 border",
+        "bg-gradient-to-b from-gray-300/10 via-gray-500/20 to-gray-500/20",
+        "border-8 border-gray-800",  // Thick black border like real refrigerator shelf dividers
         {
-          "border-gray-600": !isDragging,
+          "border-gray-800": !isDragging,
           "ring-2 ring-offset-2 ring-offset-gray-900 ring-green-500": isValidRowTarget,
           "opacity-40": isDisabled,
         }
@@ -52,15 +76,13 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
             Cannot drop here
           </div>
         </div>
-      )}
-
-      <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        {/* UPDATED: The minHeight is now set dynamically from the row's data for realism */}
-        <div className="flex items-end gap-px h-full relative z-10" style={{ minHeight: `${row.maxHeight}px`}}>
+      )}      <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
+        {/* Use exact height from data (not minHeight) */}
+        <div className="flex items-end gap-px relative z-10" style={{ height: `${row.maxHeight}px` }}>
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative">
               <AnimatePresence>
-                {showGhost && dropIndicator.index === index && (
+                {showGhost && dropIndicator?.index === index && (
                   <motion.div
                     initial={{ scaleY: 0, opacity: 0 }}
                     animate={{ scaleY: 1, opacity: 1 }}
@@ -84,7 +106,7 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
           ))}
           
           <AnimatePresence>
-            {showGhost && dropIndicator.index === row.stacks.length && (
+            {showGhost && dropIndicator?.index === row.stacks.length && (
               <motion.div
                 initial={{ scaleY: 0, opacity: 0 }}
                 animate={{ scaleY: 1, opacity: 1 }}
@@ -95,9 +117,15 @@ export function RowComponent({ row, dropIndicator, dragValidation, conflictIds }
                 <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-400 rounded-full" />
               </motion.div>
             )}
-          </AnimatePresence>
-        </div>
+          </AnimatePresence>        </div>
       </SortableContext>
     </motion.div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison for optimal performance
+  return prevProps.row.id === nextProps.row.id &&
+         prevProps.row.stacks.length === nextProps.row.stacks.length &&
+         prevProps.dropIndicator === nextProps.dropIndicator &&
+         prevProps.dragValidation === nextProps.dragValidation &&
+         prevProps.conflictIds === nextProps.conflictIds;
+});

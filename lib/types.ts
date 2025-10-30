@@ -18,9 +18,12 @@ export interface Item {
   name: string;
   width: number;
   height: number;
+  widthMM?: number; // NEW: Width in millimeters (for dynamic blank spaces)
+  heightMM?: number; // NEW: Height in millimeters (for dynamic blank spaces)
   imageUrl: string;
   productType: string; // NEW: e.g., 'PET', 'SSS', 'TETRA'
   constraints: ItemConstraints;
+  customWidth?: number; // NEW: Custom width for BLANK spaces (in pixels)
 }
 
 /**
