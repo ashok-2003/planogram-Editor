@@ -42,7 +42,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
       animate={{
         scale: isSelected ? 1.02 : 1,
         boxShadow: isSelected 
-          ? "0 0 20px rgba(59, 130, 246, 0.5)" 
+          ? "0 0 10px rgba(59, 130, 246, 0.5)" 
           : "0 2px 4px rgba(0, 0, 0, 0.1)"
       }}
       transition={{ 
