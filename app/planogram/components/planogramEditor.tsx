@@ -248,7 +248,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
-  const [isRulesEnabled, setIsRulesEnabled] = useState(true);
+  const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
@@ -455,7 +455,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     <div className=''>
       <div className="flex justify-between items-start text-black mb-4">
         <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
-        <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} />
+        {/* <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} /> */}
       </div>
         <div className="flex justify-between items-center mb-4">
         <ModeToggle mode={interactionMode} setMode={handleModeChange} />
