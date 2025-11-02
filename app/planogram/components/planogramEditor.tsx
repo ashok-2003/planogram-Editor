@@ -67,16 +67,16 @@ function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
 // --- NEW: UI Component for Rule Toggle ---
 function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
   return (
-    <div className="flex items-center gap-3 mb-4">
+    <div className="flex items-center gap-2">
       <label htmlFor="rule-toggle" className="text-sm font-medium text-gray-700">
-        Enforce Placement Rules
+        Rules
       </label>
       <button
         id="rule-toggle"
         onClick={() => onToggle(!isEnabled)}
         className={clsx(
           "inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-          isEnabled ? 'bg-blue-600' : 'bg-gray-200'
+          isEnabled ? 'bg-blue-600' : 'bg-gray-300'
         )}
       >
         <span
@@ -468,7 +468,12 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           </div>
 
           <div className="flex gap-2 h-14 items-center">
-            {/* ...existing buttons... */}
+            {/* Rule Toggle - FIXED */}
+            {/* <RuleToggle 
+              isEnabled={isRulesEnabled} 
+              onToggle={setIsRulesEnabled} 
+            /> */}
+
             <button
               onClick={actions.undo}
               disabled={!canUndo}
@@ -550,9 +555,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
                 isRulesEnabled={isRulesEnabled} 
               />
             </div>
-            <div>
+            {/* <div>
               <StatePreview/>
-            </div>
+            </div> */}
           </div>
         </div>
 
