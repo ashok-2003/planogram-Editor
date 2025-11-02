@@ -20,9 +20,18 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
     selectItem(isSelected ? null : item.id);
   }, [selectItem, isSelected, item.id]);
 
+  // Reduce blank space height by 2px
+  const adjustedHeight = useMemo(() => {
+    return item.productType === 'BLANK' ? item.height - 4 : item.height;
+  }, [item.productType, item.height]);
+
   return (
     <motion.div
-      onClick={handleSelect}      style={{ width: `${item.width}px`, height: `${item.height}px` }}
+      onClick={handleSelect}
+      style={{ 
+        width: `${item.width}px`, 
+        height: `${adjustedHeight}px` 
+      }}
       className={clsx(
         'flex items-center justify-center cursor-pointer relative',
         {
@@ -65,7 +74,8 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
           }}
         />
       )}
-        <motion.img 
+      
+      <motion.img 
         src={item.imageUrl} 
         alt={item.name} 
         className="object-cover w-full h-full pointer-events-none relative z-10"
@@ -73,12 +83,13 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
         whileHover={{ 
           filter: "brightness(1.1) contrast(1.05)",
           transition: { duration: 0.2 }
-        }}      />
+        }}
+      />
       
-      {/* NEW: Width measurement overlay for BLANK spaces */}
+      {/* Width measurement overlay for BLANK spaces */}
       {item.productType === 'BLANK' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="bg-blue-600 text-white text-xs font-bold">
+          <div className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
             {Math.round(item.width / PIXELS_PER_MM)}mm
           </div>
         </div>
@@ -86,8 +97,6 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
     </motion.div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for optimal performance
-  // Only re-render if item properties actually changed
   return prevProps.item.id === nextProps.item.id &&
          prevProps.item.imageUrl === nextProps.item.imageUrl &&
          prevProps.item.width === nextProps.item.width &&

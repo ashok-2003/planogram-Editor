@@ -5,6 +5,7 @@ import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
+import { PropertiesPanel } from './PropertiesPanel'; // NEW
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
@@ -516,19 +517,8 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             </div>
           </div>
         </div>
-
-        {/* Layout Selector and Mode Toggle Row */}
-        {/* <div className='flex flex-row justify-between items-center px-6 mb-4'>
-          <div>
-            <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
-          </div>
-          <div>
-            <ModeToggle mode={interactionMode} setMode={handleModeChange} />
-          </div>
-        </div> */}
       </div>
 
-      {/* Main 3-Column Grid Layout: 3-6-3 */}
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
         <div className='min-h-screen w-full grid grid-cols-12 gap-4 px-6'>
           {/* Left Column (3/12): SKU Palette */}
@@ -542,23 +532,27 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
               <ModeToggle mode={interactionMode} setMode={handleModeChange} />
             </div>
-            <div className='justify-center items-center flex border border-red-500'>
+            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
               <RefrigeratorComponent
-              dragValidation={dragValidation}
-              dropIndicator={dropIndicator}
-              conflictIds={isRulesEnabled ? conflictIds : []}
-              selectedLayoutId={selectedLayoutId}
-            />
+                dragValidation={dragValidation}
+                dropIndicator={dropIndicator}
+                conflictIds={isRulesEnabled ? conflictIds : []}
+                selectedLayoutId={selectedLayoutId}
+              />
             </div>
-            <div>
-              
-            </div>
-
           </div>
 
-          {/* Right Column (3/12): Info Panel */}
+          {/* Right Column (3/12): Properties Panel */}
           <div className='col-span-3 h-full'>
-            <InfoPanel availableSkus={initialSkus} isRulesEnabled={isRulesEnabled} />
+            <div className='bg-white rounded-lg shadow-md border border-gray-200  overflow-hidden'>
+              <PropertiesPanel 
+                availableSkus={initialSkus} 
+                isRulesEnabled={isRulesEnabled} 
+              />
+            </div>
+            <div>
+              <StatePreview/>
+            </div>
           </div>
         </div>
 

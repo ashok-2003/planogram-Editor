@@ -55,11 +55,10 @@ export const RowComponent = React.memo(function RowComponent({
   return (
     <motion.div 
       ref={setNodeRef}
-      // NO max-width here - row takes 100% of parent's EXACT width
       className={clsx(
         "relative transition-all duration-300 ease-out w-full",
         "bg-gradient-to-b from-white/80 via-slate-50/60 to-slate-100/80",
-        "border-b-[6px] border-gray-700/60", // Thicker border from 3px to 6px
+        "border-b-[6px] border-gray-700/60",
         {
           "ring-2 ring-green-400 ring-inset": isValidRowTarget && isOver,
           "opacity-40": isDisabled,
@@ -88,9 +87,9 @@ export const RowComponent = React.memo(function RowComponent({
       )}
 
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
-        {/* Content area - items align to bottom, exact height */}
+        {/* REMOVED px-1 padding - items align to left edge */}
         <div 
-          className="flex items-end gap-px relative z-10 h-full px-1"
+          className="flex items-end gap-px relative z-10 h-full"
         >
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative flex items-end h-full">
@@ -101,7 +100,7 @@ export const RowComponent = React.memo(function RowComponent({
                     initial={{ scaleY: 0, opacity: 0 }}
                     animate={{ scaleY: 1, opacity: 1 }}
                     exit={{ scaleY: 0, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }} // Back to original timing
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
                   >
                     <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
@@ -126,7 +125,7 @@ export const RowComponent = React.memo(function RowComponent({
                 initial={{ scaleY: 0, opacity: 0 }}
                 animate={{ scaleY: 1, opacity: 1 }}
                 exit={{ scaleY: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }} // Back to original timing
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
               >
                 <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
