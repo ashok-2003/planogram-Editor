@@ -3,7 +3,6 @@
 import { Sku } from '@/lib/types';
 import { useDraggable } from '@dnd-kit/core';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface SkuPaletteProps {
   skus: Sku[];
@@ -61,7 +60,6 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const parentRef = useRef<HTMLDivElement>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -99,14 +97,6 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
     return filtered;
   }, [skus, debouncedSearch, selectedCategory]);
 
-  // Virtual scrolling for performance with large lists
-  const rowVirtualizer = useVirtualizer({
-    count: filteredSkus.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 145, // Estimated height of each SKU card (including margin)
-    overscan: 3, // Render 3 items above/below viewport for smooth scrolling
-  });
-
   // Clear all filters
   const handleClearFilters = useCallback(() => {
     setSearchQuery('');
@@ -128,7 +118,7 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
   }, []);
 
   return (
-    <aside className="max-h-screen overflow-hidden p-4 bg-gray-100 rounded-lg shadow-md w-full md:w-64 flex-shrink-0 flex flex-col">
+    <aside className="h-full p-4 bg-gray-100 rounded-lg shadow-md w-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-2 mb-3">
         <h2 className="text-lg font-bold text-gray-800">Products</h2>
@@ -167,16 +157,16 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
         )}
       </div>
 
-      {/* Category Filter */}
-      {/* <div className="mb-3">
+      {/* Category Filter Dropdown */}
+      <div className="mb-3">
         <label htmlFor="category-filter" className="block text-xs font-medium text-gray-700 mb-1">
-          Category
+          Filter by Category
         </label>
         <select
           id="category-filter"
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="w-full px-3 py-2 text-sm  text-gray-800 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
         >
           {categories.map((category) => (
             <option key={category} value={category}>
@@ -184,7 +174,8 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
             </option>
           ))}
         </select>
-      </div>       */}
+      </div>
+
       {/* Clear Filters Button */}
       {(searchQuery || selectedCategory !== 'all') && (
         <button
@@ -196,12 +187,10 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
           </svg>
           Clear filters
         </button>
-      )}{/* SKU List with Virtual Scrolling */}
-      <div 
-        ref={parentRef}
-        className="flex-grow overflow-y-auto pr-2 -mr-2"
-        style={{ contain: 'strict' }}
-      >
+      )}
+
+      {/* SKU List - Simple Grid without Virtual Scrolling */}
+      <div className="flex-1 overflow-y-auto pr-2 -mr-2">
         {filteredSkus.length === 0 ? (
           <EmptyState
             searchQuery={debouncedSearch}
@@ -209,33 +198,10 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
             onClear={handleClearFilters}
           />
         ) : (
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const sku = filteredSkus[virtualRow.index];
-              return (
-                <div
-                  key={sku.skuId}
-                  data-index={virtualRow.index}
-                  ref={rowVirtualizer.measureElement}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  className="pb-3" // spacing between items
-                >
-                  <DraggableSku sku={sku} />
-                </div>
-              );
-            })}
+          <div className="space-y-3">
+            {filteredSkus.map((sku) => (
+              <DraggableSku key={sku.skuId} sku={sku} />
+            ))}
           </div>
         )}
       </div>
