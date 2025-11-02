@@ -158,7 +158,7 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
       </div>
 
       {/* Category Filter Dropdown */}
-      <div className="mb-3">
+      {/* <div className="mb-3">
         <label htmlFor="category-filter" className="block text-xs font-medium text-gray-700 mb-1">
           Filter by Category
         </label>
@@ -174,7 +174,7 @@ export function SkuPalette({ skus }: SkuPaletteProps) {
             </option>
           ))}
         </select>
-      </div>
+      </div> */}
 
       {/* Clear Filters Button */}
       {(searchQuery || selectedCategory !== 'all') && (
