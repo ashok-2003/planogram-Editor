@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
+import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
-import { PropertiesPanel } from './PropertiesPanel'; // NEW
+import { PropertiesPanel } from './PropertiesPanel';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
@@ -37,7 +37,8 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
         )}
       >
         Re-Order
-      </button>      <button
+      </button>
+      <button
         onClick={() => setMode('stack')}
         className={clsx(
           "px-4 py-2 text-sm font-semibold rounded-md transition-colors w-full text-center",
@@ -103,7 +104,8 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
         <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
           Disable Rules
         </button>
-      </div>    </div>
+      </div>
+    </div>
   );
 }
 
@@ -228,7 +230,7 @@ export type DragValidation = {
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
-  initialLayouts: { [key: string]: LayoutData }; // Update to use LayoutData
+  initialLayouts: { [key: string]: LayoutData };
 }
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
@@ -236,7 +238,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
 
-  // NEW: Access persistence state from store (Phase 9)
   const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
   const syncStatus = usePlanogramStore((state) => state.syncStatus);
   const lastSynced = usePlanogramStore((state) => state.lastSynced);
@@ -354,7 +355,8 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         refrigerator,
         findStackLocation,
         isRulesEnabled,
-      }); setDragValidation(validationResult);
+      });
+      setDragValidation(validationResult);
     }
   }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
 
@@ -444,7 +446,8 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           setInvalidModeAttempts(0);
         }
       }
-    } setActiveItem(null);
+    }
+    setActiveItem(null);
     setDropIndicator(null);
     setDragValidation(null);
   }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
