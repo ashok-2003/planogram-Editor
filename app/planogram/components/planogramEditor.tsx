@@ -26,7 +26,7 @@ interface ModeToggleProps {
 
 function ModeToggle({ mode, setMode }: ModeToggleProps) {
   return (
-    <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 max-w-xs">
+    <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 min-w-xs">
       <button
         onClick={() => setMode('reorder')}
         className={clsx(
@@ -35,7 +35,7 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
           { 'text-gray-600 hover:bg-gray-300': mode !== 'reorder' }
         )}
       >
-        Re-Order Mode
+        Re-Order
       </button>      <button
         onClick={() => setMode('stack')}
         className={clsx(
@@ -44,7 +44,7 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
           { 'text-gray-600 hover:bg-gray-300': mode !== 'stack' }
         )}
       >
-        Stack Mode
+        Stack
       </button>
     </div>
   );
@@ -194,14 +194,14 @@ interface LayoutSelectorProps {
 function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
   return (
     <div className="mb-6 max-w-sm">
-      <label htmlFor="layout-select" className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor="layout-select" className="block text-xs font-medium text-gray-700 mb-1">
         Refrigerator Model
       </label>
       <select
         id="layout-select"
         value={selectedLayout}
         onChange={(e) => onLayoutChange(e.target.value)}
-        className="mt-1 block w-full pl-3 pr-10 py-2 text-black border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+        className="mt-1 block  pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm shadow-sm"
       >
         {Object.keys(layouts).map(layoutId => (
           <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
@@ -538,7 +538,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
           {/* Middle Column (6/12): Refrigerator */}
           <div className='col-span-6 h-full'>
-            <div className='bg-gray-200'>
+            <div className='w-full flex flex-row justify-between items-center'>
+              <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
+              <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+            </div>
+            <div className='justify-center items-center flex border border-red-500'>
               <RefrigeratorComponent
               dragValidation={dragValidation}
               dropIndicator={dropIndicator}
@@ -546,6 +550,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               selectedLayoutId={selectedLayoutId}
             />
             </div>
+            <div>
+              
+            </div>
+
           </div>
 
           {/* Right Column (3/12): Info Panel */}

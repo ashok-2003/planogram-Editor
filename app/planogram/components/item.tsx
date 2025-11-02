@@ -78,7 +78,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
       {/* NEW: Width measurement overlay for BLANK spaces */}
       {item.productType === 'BLANK' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="bg-blue-600 text-white px-2 py-1 rounded-md shadow-lg text-xs font-bold border-2 border-white">
+          <div className="bg-blue-600 text-white text-xs font-bold">
             {Math.round(item.width / PIXELS_PER_MM)}mm
           </div>
         </div>
