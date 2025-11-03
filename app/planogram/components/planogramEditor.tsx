@@ -558,9 +558,9 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
                 isRulesEnabled={isRulesEnabled} 
               />
             </div>
-            {/* <div>
+            <div>
               <StatePreview/>
-            </div> */}
+            </div>
           </div>
         </div>
 
