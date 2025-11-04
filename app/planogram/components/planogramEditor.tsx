@@ -70,7 +70,7 @@ function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (en
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="rule-toggle" className="text-sm font-medium text-gray-700">
-        Rules
+        Enforce Placement Rules
       </label>
       <button
         id="rule-toggle"
@@ -472,10 +472,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
           <div className="flex gap-2 h-14 items-center">
             {/* Rule Toggle - FIXED */}
-            {/* <RuleToggle 
+            <RuleToggle 
               isEnabled={isRulesEnabled} 
               onToggle={setIsRulesEnabled} 
-            /> */}
+            />
 
             <button
               onClick={actions.undo}
