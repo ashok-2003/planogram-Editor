@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types'; // Add LayoutData import
+import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
+import { PropertiesPanel } from './PropertiesPanel';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
@@ -26,7 +27,7 @@ interface ModeToggleProps {
 
 function ModeToggle({ mode, setMode }: ModeToggleProps) {
   return (
-    <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 max-w-xs">
+    <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 min-w-xs">
       <button
         onClick={() => setMode('reorder')}
         className={clsx(
@@ -35,8 +36,9 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
           { 'text-gray-600 hover:bg-gray-300': mode !== 'reorder' }
         )}
       >
-        Re-Order Mode
-      </button>      <button
+        Re-Order
+      </button>
+      <button
         onClick={() => setMode('stack')}
         className={clsx(
           "px-4 py-2 text-sm font-semibold rounded-md transition-colors w-full text-center",
@@ -44,7 +46,7 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
           { 'text-gray-600 hover:bg-gray-300': mode !== 'stack' }
         )}
       >
-        Stack Mode
+        Stack
       </button>
     </div>
   );
@@ -66,7 +68,7 @@ function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
 // --- NEW: UI Component for Rule Toggle ---
 function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
   return (
-    <div className="flex items-center gap-3 mb-4">
+    <div className="flex items-center gap-2">
       <label htmlFor="rule-toggle" className="text-sm font-medium text-gray-700">
         Enforce Placement Rules
       </label>
@@ -74,8 +76,8 @@ function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (en
         id="rule-toggle"
         onClick={() => onToggle(!isEnabled)}
         className={clsx(
-          "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-          isEnabled ? 'bg-blue-600' : 'bg-gray-200'
+          "inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+          isEnabled ? 'bg-blue-600' : 'bg-gray-300'
         )}
       >
         <span
@@ -102,14 +104,15 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
         <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
           Disable Rules
         </button>
-      </div>    </div>
+      </div>
+    </div>
   );
 }
 
 // --- UI Component for Restore Draft Prompt ---
 function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: Date | null; onRestore: () => void; onDismiss: () => void; }) {
   const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : 'recently';
-  
+
   return (
     <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-blue-500 text-white p-4 rounded-lg shadow-2xl flex items-center gap-4 z-50 max-w-md">
       <div className="flex-shrink-0">
@@ -136,15 +139,14 @@ function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: D
 // --- UI Component for Save Indicator ---
 function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime: Date | null; onManualSave: () => void; isSaving: boolean }) {
   const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : null;
-  
+
   return (
-    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-      <button 
+    <div className="flex items-center">
+      <button
         onClick={onManualSave}
         disabled={isSaving}
-        className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm ${
-          isSaving ? 'opacity-75 cursor-not-allowed' : ''
-        }`}
+        className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm ${isSaving ? 'opacity-75 cursor-not-allowed' : ''
+          }`}
       >
         {isSaving ? (
           <>
@@ -156,18 +158,18 @@ function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime:
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
             </svg>
-            Save Now
+            Save
           </>
         )}
       </button>
-      {timeAgo && (
+      {/* {timeAgo && (
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
           <span>Last saved: {timeAgo}</span>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
@@ -175,7 +177,7 @@ function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime:
 // Helper function to format time ago
 function getTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  
+
   if (seconds < 60) return 'just now';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
@@ -195,14 +197,14 @@ interface LayoutSelectorProps {
 function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
   return (
     <div className="mb-6 max-w-sm">
-      <label htmlFor="layout-select" className="block text-sm font-medium text-gray-700 mb-1">
+      <label htmlFor="layout-select" className="block text-xs font-medium text-gray-700 mb-1">
         Refrigerator Model
       </label>
       <select
         id="layout-select"
         value={selectedLayout}
         onChange={(e) => onLayoutChange(e.target.value)}
-        className="mt-1 block w-full pl-3 pr-10 py-2 text-black border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+        className="mt-1 block  pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm shadow-sm"
       >
         {Object.keys(layouts).map(layoutId => (
           <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
@@ -228,47 +230,46 @@ export type DragValidation = {
 interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
-  initialLayouts: { [key: string]: LayoutData }; // Update to use LayoutData
+  initialLayouts: { [key: string]: LayoutData };
 }
 
 export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
-  
-  // NEW: Access persistence state from store (Phase 9)
+
   const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
   const syncStatus = usePlanogramStore((state) => state.syncStatus);
   const lastSynced = usePlanogramStore((state) => state.lastSynced);
-  
+
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
   const [interactionMode, setInteractionMode] = useState<'reorder' | 'stack'>('reorder');
-  
+
   const [showModePrompt, setShowModePrompt] = useState(false);
   const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
-  
+
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  
+
   // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
     // Initialize layout on mount
     actions.initializeLayout(selectedLayoutId, initialLayout);
-    
+
     // Simulate minimum loading time for smooth UX
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
-      return () => clearTimeout(loadingTimer);
+    return () => clearTimeout(loadingTimer);
   }, []);
-  
+
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -285,12 +286,12 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         actions.deleteSelectedItem();
       }
     };
-      window.addEventListener('keydown', handleKeyPress);
+    window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [canUndo, canRedo, actions]);
-  
+
   const sensors = useSensors(
-    useSensor(PointerSensor, { 
+    useSensor(PointerSensor, {
       activationConstraint: { distance: 8 }
     })
   );
@@ -303,7 +304,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       setConflictIds([]);
     }
   }, [refrigerator, isRulesEnabled]);
-  
+
   // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
     setSelectedLayoutId(layoutId);
@@ -324,7 +325,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     actions.selectItem(null);
     const { active } = event;
     const activeData = active.data.current;
-    
+
     let draggedItem: Item | Sku | null = null;
     let draggedEntityHeight = 0;
     let isSingleItemStackable = false;
@@ -354,12 +355,14 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         refrigerator,
         findStackLocation,
         isRulesEnabled,
-      });      setDragValidation(validationResult);
-    }  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
-  
+      });
+      setDragValidation(validationResult);
+    }
+  }, [actions, refrigerator, findStackLocation, isRulesEnabled]);
+
   // Throttle ref for dragOver performance optimization
   const dragOverThrottleRef = useRef<number>(0);
-  
+
   const handleDragOver = useCallback((event: DragOverEvent) => {
     // Throttle dragOver to every 16ms (60fps) for better performance
     const now = Date.now();
@@ -367,7 +370,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       return;
     }
     dragOverThrottleRef.current = now;
-    
+
     const { active, over } = event;
     if (!over) { setDropIndicator(null); return; }
 
@@ -379,7 +382,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     if (activeType === 'sku' || interactionMode === 'reorder') {
       let overRowId: string | undefined;
       let stackIndex: number | undefined;
-      
+
       if (overType === 'row') {
         overRowId = overId;
         stackIndex = over.data.current?.items?.length || 0;
@@ -390,7 +393,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           stackIndex = location.stackIndex;
         }
       }
-      
+
       if (overRowId && stackIndex !== undefined) {
         setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
         return;
@@ -404,7 +407,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         return;
       }
     }
-    
+
     setDropIndicator(null);
   }, [interactionMode, findStackLocation, dragValidation]);
 
@@ -442,107 +445,141 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           }
           setInvalidModeAttempts(0);
         }
-      }    }    setActiveItem(null);
+      }
+    }
+    setActiveItem(null);
     setDropIndicator(null);
-    setDragValidation(null);  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
-  
+    setDragValidation(null);
+  }, [interactionMode, dropIndicator, dragValidation, invalidModeAttempts, actions, findStackLocation]);
+
   // Show skeleton loader while loading
   if (isLoading) {
     return <PlanogramEditorSkeleton />;
   }
-  
+
   return (
-    <div className=''>
-      <div className="flex justify-between items-start text-black mb-4">
-        <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
-        {/* <RuleToggle isEnabled={isRulesEnabled} onToggle={setIsRulesEnabled} /> */}
-      </div>
-        <div className="flex justify-between items-center mb-4">
-        <ModeToggle mode={interactionMode} setMode={handleModeChange} />
-        
-        {/* Undo/Redo Controls */}
-        <div className="flex gap-2">
-          <button
-            onClick={actions.undo}
-            disabled={!canUndo}
-            className={clsx(
-              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
-              canUndo
-                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            )}
-            title="Undo (Ctrl+Z)"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-            </svg>
-            Undo
-          </button>
-          
-          <button
-            onClick={actions.redo}
-            disabled={!canRedo}
-            className={clsx(
-              "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
-              canRedo
-                ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            )}
-            title="Redo (Ctrl+Y)"
-          >
-            Redo
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />            </svg>
-          </button>
-          
-          {/* NEW: Clear Draft Button (Phase 10) */}
-          <button
-            onClick={actions.clearDraft}
-            className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md hover:shadow-lg"
-            title="Clear All Items"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Clear All
-          </button>
+    <div className='w-full h-full'>
+      <div className='w-full flex-col'>
+        <div className='h-24 w-full flex flex-row justify-between items-center px-6 border border-b mb-6'>
+          <div className='flex flex-col'>
+            <p className='text-2xl font-extrabold text-orange-500'>
+              Shelf Muse
+            </p>
+            <p className='text-xs font-light'>
+              Drag, Drop, and organize product in the refrigerator and shelves.
+            </p>
+          </div>
+
+          <div className="flex gap-2 h-14 items-center">
+            {/* Rule Toggle - FIXED */}
+            <RuleToggle 
+              isEnabled={isRulesEnabled} 
+              onToggle={setIsRulesEnabled} 
+            />
+
+            <button
+              onClick={actions.undo}
+              disabled={!canUndo}
+              className={clsx(
+                "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+                canUndo
+                  ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              )}
+              title="Undo (Ctrl+Z)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+            </button>
+
+            <button
+              onClick={actions.redo}
+              disabled={!canRedo}
+              className={clsx(
+                "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2",
+                canRedo
+                  ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              )}
+              title="Redo (Ctrl+Y)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+              </svg>
+            </button>
+
+            <button
+              onClick={actions.clearDraft}
+              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md hover:shadow-lg"
+              title="Clear All Items"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Discard
+            </button>
+
+            <div>
+              <SaveIndicator lastSaveTime={lastSynced} onManualSave={actions.manualSync} isSaving={syncStatus === 'syncing'} />
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* NEW: Save Indicator using store state (Phase 10) */}
-      <div className="mb-4">
-        <SaveIndicator lastSaveTime={lastSynced} onManualSave={actions.manualSync} isSaving={syncStatus === 'syncing'} />
-      </div>
-      
+
       <DndContext onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} sensors={sensors}>
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_350px] gap-8">
-          <div className="flex flex-col md:flex-row gap-8 max-h-screen">
+        <div className='min-h-screen w-full grid grid-cols-12 gap-4 px-6'>
+          {/* Left Column (3/12): SKU Palette */}
+          <div className='col-span-3 max-h-screen overflow-y-auto'>
             <SkuPalette skus={initialSkus} />
-            <RefrigeratorComponent 
-              dragValidation={dragValidation} 
-              dropIndicator={dropIndicator}
-              conflictIds={isRulesEnabled ? conflictIds : []}
-              selectedLayoutId={selectedLayoutId}
-            />          </div>
-          <div>
-            <InfoPanel availableSkus={initialSkus} isRulesEnabled={isRulesEnabled} />
           </div>
-          <div className='flex justify-end items-baseline-last'>
-            <StatePreview />
+
+          {/* Middle Column (6/12): Refrigerator */}
+          <div className='col-span-6 h-full'>
+            <div className='w-full flex flex-row justify-between items-center'>
+              <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
+              <ModeToggle mode={interactionMode} setMode={handleModeChange} />
+            </div>
+            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
+              <RefrigeratorComponent
+                dragValidation={dragValidation}
+                dropIndicator={dropIndicator}
+                conflictIds={isRulesEnabled ? conflictIds : []}
+                selectedLayoutId={selectedLayoutId}
+              />
+            </div>
+          </div>
+
+          {/* Right Column (3/12): Properties Panel */}
+          <div className='col-span-3 h-full'>
+            <div className='bg-white rounded-lg shadow-md border border-gray-200  overflow-hidden'>
+              <PropertiesPanel 
+                availableSkus={initialSkus} 
+                isRulesEnabled={isRulesEnabled} 
+              />
+            </div>
+            <div>
+              <StatePreview/>
+            </div>
           </div>
         </div>
+
+        {/* Drag Overlay */}
         <DragOverlay>
           {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
         </DragOverlay>
-      </DndContext>      <AnimatePresence>
+      </DndContext>
+
+      {/* Modals and Prompts */}
+      <AnimatePresence>
         {isRulesEnabled && conflictIds.length > 0 && (
-          <motion.div 
+          <motion.div
             key="conflict-panel"
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
           >
-            <ConflictPanel 
+            <ConflictPanel
               conflictCount={conflictIds.length}
               onRemove={() => actions.removeItemsById(conflictIds)}
               onDisableRules={() => setIsRulesEnabled(false)}
@@ -560,22 +597,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <ModePrompt onDismiss={() => setShowModePrompt(false)} />
           </motion.div>
         )}
-        {/* NEW: Restore prompt using store state (Phase 10) */}
-        {/* {hasPendingDraft && (
-          <motion.div
-            key="restore-prompt"
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          >
-            <RestorePrompt 
-              lastSaveTime={lastSynced}
-              onRestore={actions.restoreDraft}
-              onDismiss={actions.dismissDraft}
-            />
-          </motion.div>
-        )} */}
       </AnimatePresence>
     </div>
   );

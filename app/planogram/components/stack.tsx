@@ -65,35 +65,51 @@ export const StackComponent = React.memo(function StackComponent({
       {...listeners}
       layout="position"
       className={clsx(
-        "flex flex-col items-center justify-center relative transition-all duration-300",
-        { "opacity-40": isVisuallyDisabled && !isStackHighlight }
+        "flex flex-col items-center justify-center relative transition-all duration-200",
+        "rounded-lg", // Add rounded corners for border
+        {
+          "opacity-40": isVisuallyDisabled && !isStackHighlight,
+          // Solid green border when highlighted for stacking
+          "ring-4 ring-green-500 ring-offset-2 ring-offset-white bg-green-50/30": isStackHighlight,
+          // Default state
+          "ring-0": !isStackHighlight && !hasConflict,
+        }
       )}
-    >      {/* Green glow effect for stacking */}
+      animate={{
+        scale: isStackHighlight ? 1.05 : 1,
+      }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+    >
+      {/* Conflict Indicator - Red border for conflicts */}
       <AnimatePresence>
-        {isStackHighlight && (
+        {hasConflict && !isDragging && !isStackHighlight && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
+            className="absolute -inset-1 rounded-lg ring-4 ring-red-500 ring-offset-2 ring-offset-white pointer-events-none z-10"
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute inset-0 bg-green-400/30 rounded-lg blur-sm -z-10 ring-2 ring-green-500"
+            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
           />
         )}
       </AnimatePresence>
 
-      {/* Conflict Indicator */}
+      {/* Stack highlight indicator - appears when can drop */}
       <AnimatePresence>
-        {hasConflict && !isDragging && (
+        {isStackHighlight && (
           <motion.div
-            className="absolute -inset-1.5 rounded-lg ring-2 ring-red-500 ring-offset-2 ring-offset-gray-800 pointer-events-none"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute -inset-2 rounded-lg bg-green-500/10 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
           />
         )}
       </AnimatePresence>
 
-      <div className={clsx({ 'opacity-50': hasConflict && !isDragging })}>
+      <div className={clsx(
+        "relative",
+        { 'opacity-50': hasConflict && !isDragging }
+      )}>
         <AnimatePresence mode="popLayout">
           {stack.map((item, index) => (
             <motion.div
@@ -115,13 +131,13 @@ export const StackComponent = React.memo(function StackComponent({
             >
               <ItemComponent item={item} />
             </motion.div>
-          ))}        </AnimatePresence>
+          ))}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
 }, (prevProps, nextProps) => {
   // Custom comparison for optimal performance
-  // Only re-render if relevant props changed
   return prevProps.stack.length === nextProps.stack.length &&
          prevProps.stack[0]?.id === nextProps.stack[0]?.id &&
          prevProps.isStackHighlight === nextProps.isStackHighlight &&
