@@ -91,6 +91,33 @@ function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (en
   );
 }
 
+// --- NEW: UI Component for Bounding Box Debug Toggle ---
+function BoundingBoxToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="bbox-toggle" className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        <span>Show Bounding Boxes</span>
+        <span className="text-xs text-gray-500">(Debug)</span>
+      </label>
+      <button
+        id="bbox-toggle"
+        onClick={() => onToggle(!isEnabled)}
+        className={clsx(
+          "inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2",
+          isEnabled ? 'bg-green-600' : 'bg-gray-300'
+        )}
+      >
+        <span
+          className={clsx(
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            isEnabled ? 'translate-x-5' : 'translate-x-0'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 // --- NEW: UI Component for Conflict Resolution ---
 function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) {
   return (
@@ -247,10 +274,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
   const [interactionMode, setInteractionMode] = useState<'reorder' | 'stack'>('reorder');
 
-  const [showModePrompt, setShowModePrompt] = useState(false);
-  const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
+  const [showModePrompt, setShowModePrompt] = useState(false);  const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
 
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [isLoading, setIsLoading] = useState(true);
@@ -468,13 +495,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <p className='text-xs font-light'>
               Drag, Drop, and organize product in the refrigerator and shelves.
             </p>
-          </div>
-
-          <div className="flex gap-2 h-14 items-center">
+          </div>          <div className="flex gap-2 h-14 items-center">
             {/* Rule Toggle - FIXED */}
             <RuleToggle 
               isEnabled={isRulesEnabled} 
               onToggle={setIsRulesEnabled} 
+            />
+
+            {/* Bounding Box Debug Toggle */}
+            <BoundingBoxToggle 
+              isEnabled={showBoundingBoxes} 
+              onToggle={setShowBoundingBoxes} 
             />
 
             <button
@@ -539,13 +570,13 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <div className='w-full flex flex-row justify-between items-center'>
               <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
               <ModeToggle mode={interactionMode} setMode={handleModeChange} />
-            </div>
-            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
+            </div>            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
               <RefrigeratorComponent
                 dragValidation={dragValidation}
                 dropIndicator={dropIndicator}
                 conflictIds={isRulesEnabled ? conflictIds : []}
                 selectedLayoutId={selectedLayoutId}
+                showBoundingBoxes={showBoundingBoxes}
               />
             </div>
           </div>

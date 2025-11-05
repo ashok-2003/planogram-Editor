@@ -7,19 +7,22 @@ import { RowComponent } from './row';
 import { DropIndicator, DragValidation } from './planogramEditor';
 import { layouts } from '@/lib/planogram-data';
 import { PIXELS_PER_MM } from '@/lib/config';
+import { BoundingBoxOverlay } from './BoundingBoxOverlay';
 
 interface RefrigeratorComponentProps {
   dropIndicator: DropIndicator;
   dragValidation: DragValidation;
   conflictIds: string[];
   selectedLayoutId: string;
+  showBoundingBoxes?: boolean;
 }
 
 export function RefrigeratorComponent({ 
   dropIndicator, 
   dragValidation, 
   conflictIds, 
-  selectedLayoutId 
+  selectedLayoutId,
+  showBoundingBoxes = false
 }: RefrigeratorComponentProps) {
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
   const sortedRowIds = useMemo(() => Object.keys(refrigerator).sort(), [refrigerator]);
@@ -70,9 +73,7 @@ export function RefrigeratorComponent({
               {Math.ceil(dimensions.width / PIXELS_PER_MM) }mm × { Math.ceil(dimensions.height / PIXELS_PER_MM) }mm
             </span>
           </div>
-        </div>
-
-        {/* INTERNAL WORKING AREA - Uses EXACT real dimensions */}
+        </div>        {/* INTERNAL WORKING AREA - Uses EXACT real dimensions */}
         <div 
           className="relative bg-gradient-to-b from-slate-50 to-slate-100 rounded-sm"
           style={{
@@ -102,6 +103,12 @@ export function RefrigeratorComponent({
               />
             ))}
           </div>
+
+          {/* Bounding Box Debug Overlay */}
+          <BoundingBoxOverlay 
+            isVisible={showBoundingBoxes} 
+            selectedLayoutId={selectedLayoutId}
+          />
         </div>
 
         {/* Bottom Grille */}
