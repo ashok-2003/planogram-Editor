@@ -2,23 +2,29 @@
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-
-// --- (Make sure to import your converter function) ---
- // <-- Adjust this path
-import { Refrigerator } from '@/lib/types'; // <-- Import your Refrigerator type
+import { Refrigerator } from '@/lib/types';
 import { convertFrontendToBackend } from '@/lib/backend-transform';
+import { availableLayoutsData } from '@/lib/planogram-data';
 
 export function StatePreview() {
   // Get the raw frontend state from the store
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
+  const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
   const [copied, setCopied] = useState(false);
 
-  // --- (NEW) CONVERT THE DATA ---
-  // Use useMemo to re-calculate only when 'refrigerator' changes
+  // --- CONVERT THE DATA WITH BOUNDING BOXES ---
   const backendData = useMemo(() => {
-    // Pass the raw refrigerator state to your converter
-    return convertFrontendToBackend(refrigerator as Refrigerator); 
-  }, [refrigerator]);
+    // Get dimensions from current layout
+    const layoutId = currentLayoutId || 'g-26c'; // Default to g-26c
+    const layoutData = availableLayoutsData[layoutId];
+    
+    // Pass refrigerator state and dimensions to converter
+    return convertFrontendToBackend(
+      refrigerator as Refrigerator,
+      layoutData?.width || 0,
+      layoutData?.height || 0
+    ); 
+  }, [refrigerator, currentLayoutId]);
 
   // 'formattedState' is now the JSON of the *converted* backend data
   const formattedState = JSON.stringify(backendData, null, 2);
