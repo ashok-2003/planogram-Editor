@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
@@ -25,7 +25,7 @@ interface ModeToggleProps {
   setMode: (mode: 'reorder' | 'stack') => void;
 }
 
-function ModeToggle({ mode, setMode }: ModeToggleProps) {
+const ModeToggle = React.memo(({ mode, setMode }: ModeToggleProps) => {
   return (
     <div className="flex items-center gap-2 p-1 bg-gray-200 rounded-lg mb-4 min-w-xs">
       <button
@@ -50,10 +50,11 @@ function ModeToggle({ mode, setMode }: ModeToggleProps) {
       </button>
     </div>
   );
-}
+});
+ModeToggle.displayName = 'ModeToggle';
 
 // --- UI Component for User Guidance Prompt ---
-function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
+const ModePrompt = React.memo(({ onDismiss }: { onDismiss: () => void }) => {
   return (
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-yellow-400 text-gray-900 p-4 rounded-lg shadow-2xl flex items-center gap-4 z-50">
       <div className="flex-shrink-0">
@@ -63,10 +64,11 @@ function ModePrompt({ onDismiss }: { onDismiss: () => void }) {
       <button onClick={onDismiss} className="text-lg font-bold hover:text-black">&times;</button>
     </div>
   );
-}
+});
+ModePrompt.displayName = 'ModePrompt';
 
 // --- NEW: UI Component for Rule Toggle ---
-function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
+const RuleToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) => {
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="rule-toggle" className="text-sm font-medium text-gray-700">
@@ -85,14 +87,14 @@ function RuleToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (en
             "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
             isEnabled ? 'translate-x-5' : 'translate-x-0'
           )}
-        />
-      </button>
+        />      </button>
     </div>
   );
-}
+});
+RuleToggle.displayName = 'RuleToggle';
 
 // --- NEW: UI Component for Bounding Box Debug Toggle ---
-function BoundingBoxToggle({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) {
+const BoundingBoxToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) => {
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="bbox-toggle" className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -112,14 +114,14 @@ function BoundingBoxToggle({ isEnabled, onToggle }: { isEnabled: boolean; onTogg
             "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
             isEnabled ? 'translate-x-5' : 'translate-x-0'
           )}
-        />
-      </button>
+        />      </button>
     </div>
   );
-}
+});
+BoundingBoxToggle.displayName = 'BoundingBoxToggle';
 
 // --- NEW: UI Component for Conflict Resolution ---
-function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) {
+const ConflictPanel = React.memo(({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) => {
   return (
     <div className="fixed bottom-5 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm">
       <strong className="font-bold">Rule Conflict Detected!</strong>
@@ -130,14 +132,27 @@ function ConflictPanel({ conflictCount, onRemove, onDisableRules }: { conflictCo
         </button>
         <button onClick={onDisableRules} className="bg-transparent hover:bg-red-200 text-red-700 font-semibold py-1 px-3 border border-red-500 hover:border-transparent rounded text-sm">
           Disable Rules
-        </button>
-      </div>
+        </button>      </div>
     </div>
   );
+});
+ConflictPanel.displayName = 'ConflictPanel';
+
+// Helper function to format time ago (moved before components that use it)
+function getTimeAgo(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
 }
 
 // --- UI Component for Restore Draft Prompt ---
-function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: Date | null; onRestore: () => void; onDismiss: () => void; }) {
+const RestorePrompt = React.memo(({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: Date | null; onRestore: () => void; onDismiss: () => void; }) => {
   const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : 'recently';
 
   return (
@@ -157,14 +172,14 @@ function RestorePrompt({ lastSaveTime, onRestore, onDismiss }: { lastSaveTime: D
         </button>
         <button onClick={onDismiss} className="bg-blue-600 text-white px-3 py-1 rounded font-semibold text-sm hover:bg-blue-700 transition-colors">
           Dismiss
-        </button>
-      </div>
+        </button>      </div>
     </div>
   );
-}
+});
+RestorePrompt.displayName = 'RestorePrompt';
 
 // --- UI Component for Save Indicator ---
-function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime: Date | null; onManualSave: () => void; isSaving: boolean }) {
+const SaveIndicator = React.memo(({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime: Date | null; onManualSave: () => void; isSaving: boolean }) => {
   const timeAgo = lastSaveTime ? getTimeAgo(lastSaveTime) : null;
 
   return (
@@ -195,24 +210,11 @@ function SaveIndicator({ lastSaveTime, onManualSave, isSaving }: { lastSaveTime:
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
           <span>Last saved: {timeAgo}</span>
-        </div>
-      )} */}
+        </div>      )} */}
     </div>
   );
-}
-
-// Helper function to format time ago
-function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days > 1 ? 's' : ''} ago`;
-}
+});
+SaveIndicator.displayName = 'SaveIndicator';
 
 // ... (LayoutSelector remains the same)
 interface LayoutSelectorProps {
@@ -221,7 +223,7 @@ interface LayoutSelectorProps {
   onLayoutChange: (layoutId: string) => void;
 }
 
-function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) {
+const LayoutSelector = React.memo(({ layouts, selectedLayout, onLayoutChange }: LayoutSelectorProps) => {
   return (
     <div className="mb-6 max-w-sm">
       <label htmlFor="layout-select" className="block text-xs font-medium text-gray-700 mb-1">
@@ -235,11 +237,11 @@ function LayoutSelector({ layouts, selectedLayout, onLayoutChange }: LayoutSelec
       >
         {Object.keys(layouts).map(layoutId => (
           <option key={layoutId} value={layoutId}>{layouts[layoutId].name}</option>
-        ))}
-      </select>
+        ))}      </select>
     </div>
   );
-}
+});
+LayoutSelector.displayName = 'LayoutSelector';
 
 
 export type DropIndicator = {
@@ -389,7 +391,6 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   // Throttle ref for dragOver performance optimization
   const dragOverThrottleRef = useRef<number>(0);
-
   const handleDragOver = useCallback((event: DragOverEvent) => {
     // Throttle dragOver to every 16ms (60fps) for better performance
     const now = Date.now();
@@ -399,43 +400,47 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     dragOverThrottleRef.current = now;
 
     const { active, over } = event;
-    if (!over) { setDropIndicator(null); return; }
+    
+    // Batch non-urgent UI updates with startTransition
+    React.startTransition(() => {
+      if (!over) { setDropIndicator(null); return; }
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    const overType = over.data.current?.type;
-    const activeType = active.data.current?.type;
+      const activeId = active.id as string;
+      const overId = over.id as string;
+      const overType = over.data.current?.type;
+      const activeType = active.data.current?.type;
 
-    if (activeType === 'sku' || interactionMode === 'reorder') {
-      let overRowId: string | undefined;
-      let stackIndex: number | undefined;
+      if (activeType === 'sku' || interactionMode === 'reorder') {
+        let overRowId: string | undefined;
+        let stackIndex: number | undefined;
 
-      if (overType === 'row') {
-        overRowId = overId;
-        stackIndex = over.data.current?.items?.length || 0;
-      } else if (overType === 'stack') {
-        const location = findStackLocation(overId);
-        if (location) {
-          overRowId = location.rowId;
-          stackIndex = location.stackIndex;
+        if (overType === 'row') {
+          overRowId = overId;
+          stackIndex = over.data.current?.items?.length || 0;
+        } else if (overType === 'stack') {
+          const location = findStackLocation(overId);
+          if (location) {
+            overRowId = location.rowId;
+            stackIndex = location.stackIndex;
+          }
+        }
+
+        if (overRowId && stackIndex !== undefined) {
+          setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
+          return;
         }
       }
 
-      if (overRowId && stackIndex !== undefined) {
-        setDropIndicator({ type: 'reorder', targetId: activeId, targetRowId: overRowId, index: stackIndex });
-        return;
+      if (interactionMode === 'stack') {
+        const isStackingPossible = dragValidation?.validStackTargetIds.has(overId);
+        if (isStackingPossible && overType === 'stack' && activeId !== overId) {
+          setDropIndicator({ type: 'stack', targetId: overId });
+          return;
+        }
       }
-    }
 
-    if (interactionMode === 'stack') {
-      const isStackingPossible = dragValidation?.validStackTargetIds.has(overId);
-      if (isStackingPossible && overType === 'stack' && activeId !== overId) {
-        setDropIndicator({ type: 'stack', targetId: overId });
-        return;
-      }
-    }
-
-    setDropIndicator(null);
+      setDropIndicator(null);
+    });
   }, [interactionMode, findStackLocation, dragValidation]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
