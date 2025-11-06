@@ -1,16 +1,26 @@
 'use client';
 import { usePlanogramStore } from '@/lib/store';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import toast from 'react-hot-toast';
 import { Refrigerator } from '@/lib/types';
 import { convertFrontendToBackend } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
 
-export function StatePreview() {
-  // Get the raw frontend state from the store
-  const refrigerator = usePlanogramStore((state) => state.refrigerator);
-  const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
+export const StatePreview = memo(function StatePreview() {
+  // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
+  // This prevents re-renders during drag operations (which don't change history)
+  const historyIndex = usePlanogramStore((state) => state.historyIndex);
   const [copied, setCopied] = useState(false);
+  
+  // CRITICAL FIX: Get data within useMemo to avoid re-renders during drag
+  // We only recalculate when historyIndex changes (actual commits)
+  const { refrigerator, currentLayoutId } = useMemo(() => {
+    const state = usePlanogramStore.getState();
+    return {
+      refrigerator: state.refrigerator,
+      currentLayoutId: state.currentLayoutId
+    };
+  }, [historyIndex]);
 
   // --- CONVERT THE DATA WITH BOUNDING BOXES ---
   const backendData = useMemo(() => {
@@ -68,8 +78,7 @@ export function StatePreview() {
           )}
         </button>
       </div>
-      
-      <div className="p-3">
+        <div className="p-3">
         <pre className="text-xs text-green-300 overflow-auto h-96 bg-black/80 p-2 rounded">
           <code>
             {formattedState}
@@ -78,4 +87,4 @@ export function StatePreview() {
       </div>
     </div>
   );
-}
+});

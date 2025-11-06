@@ -2,7 +2,7 @@
 
 import { usePlanogramStore } from '@/lib/store';
 import { Item, Sku } from '@/lib/types';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PIXELS_PER_MM } from '@/lib/config';
 
@@ -14,15 +14,17 @@ interface PropertiesPanelProps {
 // Blank Space Width Adjuster Component
 interface BlankSpaceWidthAdjusterProps {
   selectedItem: Item;
-  refrigerator: { [key: string]: { capacity: number; stacks: Item[][]; maxHeight: number; } };
+  historyIndex: number; // Used to trigger recalculation only on commits
   onWidthChange: (itemId: string, newWidthMM: number) => void;
 }
 
-function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: BlankSpaceWidthAdjusterProps) {
+function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: BlankSpaceWidthAdjusterProps) {
   const [inputValue, setInputValue] = useState(Math.round(selectedItem.width / PIXELS_PER_MM).toString());
   
-  // Calculate available width
+  // OPTIMIZATION: Calculate available width based on historyIndex instead of refrigerator
+  // This prevents recalculation during drag operations
   const availableWidth = useMemo(() => {
+    const refrigerator = usePlanogramStore.getState().refrigerator;
     for (const rowId in refrigerator) {
       const row = refrigerator[rowId];
       for (const stack of row.stacks) {
@@ -37,7 +39,7 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
       }
     }
     return 0;
-  }, [selectedItem, refrigerator]);
+  }, [selectedItem.id, historyIndex]);
 
   const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
   const maxWidthMM = Math.floor(availableWidth / PIXELS_PER_MM);
@@ -123,17 +125,24 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
 }
 
 export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPanelProps) {
+  // OPTIMIZATION: Subscribe to selectedItemId and historyIndex instead of refrigerator
+  // This prevents re-renders during drag operations (which don't commit to history)
   const selectedItemId = usePlanogramStore((state) => state.selectedItemId);
-  const refrigerator = usePlanogramStore((state) => state.refrigerator);
+  const historyIndex = usePlanogramStore((state) => state.historyIndex);
   const actions = usePlanogramStore((state) => state.actions);
 
   const [isReplacing, setIsReplacing] = useState(false);
 
+  // CRITICAL FIX: Get refrigerator data within useMemo based on historyIndex
+  // This prevents re-renders when refrigerator reference changes during drag
   const selectedItem: Item | null = useMemo(() => {
     if (!selectedItemId) {
       setIsReplacing(false);
       return null;
     }
+    
+    // Get fresh refrigerator data only when historyIndex or selectedItemId changes
+    const refrigerator = usePlanogramStore.getState().refrigerator;
     for (const rowId in refrigerator) {
       for (const stack of refrigerator[rowId].stacks) {
         const item = stack.find((i) => i.id === selectedItemId);
@@ -141,7 +150,7 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
       }
     }
     return null;
-  }, [selectedItemId, refrigerator]);
+  }, [selectedItemId, historyIndex]);
 
   const handleReplace = (sku: Sku) => {
     actions.replaceSelectedItem(sku, isRulesEnabled);
@@ -234,13 +243,11 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
               <p className="text-xs text-gray-600">
                 {Math.round(selectedItem.width / PIXELS_PER_MM)}mm × {Math.round(selectedItem.height / PIXELS_PER_MM)}mm
               </p>
-            </div>
-
-            {/* Width Adjustment for Blank Spaces */}
+            </div>            {/* Width Adjustment for Blank Spaces */}
             {selectedItem.productType === 'BLANK' && (
               <BlankSpaceWidthAdjuster 
                 selectedItem={selectedItem} 
-                refrigerator={refrigerator}
+                historyIndex={historyIndex}
                 onWidthChange={actions.updateBlankWidth}
               />
             )}
@@ -282,8 +289,7 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
                 Replace
               </button>
 
-              {/* Delete Button */}
-              {selectedItem.constraints.deletable && (
+              {/* Delete Button */}              {selectedItem.constraints.deletable && (
                 <button 
                   onClick={actions.deleteSelectedItem} 
                   className="w-full text-xs bg-red-500 text-white font-semibold py-2 px-3 rounded-md hover:bg-red-600 transition-colors"
@@ -298,3 +304,13 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
     </div>
   );
 }
+
+// Export with memo to prevent unnecessary re-renders
+export const PropertiesPanelMemo = memo(PropertiesPanel, (prevProps, nextProps) => {
+  // Only re-render if availableSkus or isRulesEnabled change
+  // Internal state changes (selectedItemId, historyIndex) are handled by Zustand subscriptions
+  return (
+    prevProps.availableSkus === nextProps.availableSkus &&
+    prevProps.isRulesEnabled === nextProps.isRulesEnabled
+  );
+});
