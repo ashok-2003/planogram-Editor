@@ -50,12 +50,11 @@ export function RefrigeratorComponent({
   const FRAME_BORDER = 16; // px - visual border around fridge
   const HEADER_HEIGHT = 56; // px - header section
   const GRILLE_HEIGHT = 48; // px - bottom grille
-
   return (
-    <div className="inline-flex flex-col shadow-2xl">
+    <div id="refrigerator-capture" className="inline-flex flex-col shadow-2xl">
       {/* Outer Frame - Dark border like real fridge */}
       <div 
-        className="bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-sm p-4 shadow-2xl"
+        className="bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-none p-4 shadow-2xl"
         style={{ 
           width: `${dimensions.width + (FRAME_BORDER * 2)}px` 
         }}
