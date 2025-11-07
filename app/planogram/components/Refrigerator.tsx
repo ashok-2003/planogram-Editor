@@ -15,14 +15,23 @@ interface RefrigeratorComponentProps {
   conflictIds: string[];
   selectedLayoutId: string;
   showBoundingBoxes?: boolean;
+  headerHeight?: number;
+  grilleHeight?: number;
 }
+
+// NEW: Export these constants so BoundingBoxOverlay can use them
+export const DEFAULT_HEADER_HEIGHT = 100; // px
+export const DEFAULT_GRILLE_HEIGHT = 90; // px
+export const FRAME_BORDER = 16; // px
 
 export function RefrigeratorComponent({ 
   dropIndicator, 
   dragValidation, 
   conflictIds, 
   selectedLayoutId,
-  showBoundingBoxes = false
+  showBoundingBoxes = false,
+  headerHeight = DEFAULT_HEADER_HEIGHT,
+  grilleHeight = DEFAULT_GRILLE_HEIGHT
 }: RefrigeratorComponentProps) {
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
   const sortedRowIds = useMemo(() => Object.keys(refrigerator).sort(), [refrigerator]);
@@ -46,10 +55,9 @@ export function RefrigeratorComponent({
     [sortedRowIds, refrigerator]
   );
 
-  // Border widths for visual frame (these DON'T affect internal dimensions)
-  const FRAME_BORDER = 16; // px - visual border around fridge
-  const HEADER_HEIGHT = 56; // px - header section
-  const GRILLE_HEIGHT = 48; // px - bottom grille
+  // NEW: Calculate vertical offset for products (header pushes content down)
+  const contentYOffset = headerHeight;
+
   return (
     <div id="refrigerator-capture" className="inline-flex flex-col shadow-2xl">
       {/* Outer Frame - Dark border like real fridge */}
@@ -59,20 +67,25 @@ export function RefrigeratorComponent({
           width: `${dimensions.width + (FRAME_BORDER * 2)}px` 
         }}
       >
-        {/* Header Section */}
+        {/* Header Section - NOW CONFIGURABLE */}
         <div 
           className="bg-gradient-to-b from-blue-600 to-blue-700 p-3 rounded-t-xl border-b-4 border-blue-900 mb-4"
-          style={{ width: `${dimensions.width}px` }}
+          style={{ 
+            width: `${dimensions.width}px`,
+            height: `${headerHeight}px` // NEW: Configurable height
+          }}
         >
-          <div className="flex flex-col gap-4 items-center justify-between">
+          <div className="flex flex-col gap-2 items-center justify-between h-full">
             <Badge variant="secondary" className="bg-white/95 text-blue-900 font-bold shadow-sm text-xs">
               {dimensions.name?.toUpperCase()}
             </Badge>
             <span className="text-xs text-white/95 font-semibold bg-black/20 px-2 py-1 rounded">
-              {Math.ceil(dimensions.width / PIXELS_PER_MM) }mm × { Math.ceil(dimensions.height / PIXELS_PER_MM) }mm
+              {Math.ceil(dimensions.width + 32)}mm × {Math.ceil(dimensions.height + headerHeight + grilleHeight + 32)}mm
             </span>
           </div>
-        </div>        {/* INTERNAL WORKING AREA - Uses EXACT real dimensions */}
+        </div>
+        
+        {/* INTERNAL WORKING AREA - Uses EXACT real dimensions */}
         <div 
           className="relative bg-gradient-to-b from-slate-50 to-slate-100 rounded-sm"
           style={{
@@ -103,19 +116,25 @@ export function RefrigeratorComponent({
             ))}
           </div>
 
-          {/* Bounding Box Debug Overlay */}
+          {/* Bounding Box Debug Overlay - NOW RECEIVES OFFSET INFO */}
           <BoundingBoxOverlay 
             isVisible={showBoundingBoxes} 
             selectedLayoutId={selectedLayoutId}
+            headerHeight={headerHeight}
+            grilleHeight={grilleHeight}
+            contentYOffset={contentYOffset}
           />
         </div>
 
-        {/* Bottom Grille */}
+        {/* Bottom Grille - NOW CONFIGURABLE */}
         <div 
           className="bg-gradient-to-b from-gray-800 to-gray-900 mt-4 rounded-b-xl overflow-hidden"
-          style={{ width: `${dimensions.width}px` }}
+          style={{ 
+            width: `${dimensions.width}px`,
+            height: `${grilleHeight}px` // NEW: Configurable height
+          }}
         >
-          <div className="flex flex-col gap-2 py-3 px-4">
+          <div className="flex flex-col gap-2 py-3 px-4 h-full justify-center">
             {[...Array(5)].map((_, i) => (
               <div 
                 key={i}

@@ -40,6 +40,11 @@ export interface BackendOutput {
   dimensions: {
     width: number;
     height: number;
+    totalWidth?: number;   // NEW: Total width including frame
+    totalHeight?: number;  // NEW: Total height including header + grille + frame
+    headerHeight?: number; // NEW: Header height
+    grilleHeight?: number; // NEW: Grille height
+    frameBorder?: number;  // NEW: Frame border width
   };
 }
 
@@ -101,19 +106,25 @@ function calculateStackPositions(row: Row): number[] {
 
 /**
  * Generate bounding box for an item
- * Coordinates MUST match frontend CSS positioning exactly
+ * Coordinates are calculated with ABSOLUTE positioning
+ * (includes frame border and header offsets)
+ * 
+ * Origin (0,0) is at the top-left of the entire refrigerator component.
  * 
  * Frontend CSS logic:
- * - Rows are stacked vertically (no gaps between rows)
- * - Items are positioned with flex-start (left-aligned)
- * - Items are bottom-aligned within their row (items-end)
- * - Stacks have 1px gap between them (gap-x-px)
+ * - Frame border: 16px on all sides
+ * - Header: 100px height at top
+ * - Content area: Rows stacked vertically (no gaps between rows)
+ * - Items: Bottom-aligned within rows (items-end)
+ * - Stacks: 1px gap between them (gap-x-px)
  * 
  * @param item - The item to generate bounding box for
- * @param xPosition - X position (left edge of stack)
- * @param rowYStart - Y position where row starts (top edge)
+ * @param xPosition - X position relative to content area (left edge of stack)
+ * @param rowYStart - Y position relative to content area (top edge of row)
  * @param stackHeightBelow - Total height of items below this one in stack
  * @param rowMaxHeight - Maximum height of the row
+ * @param frameBorder - Frame border width to add as X and Y offset
+ * @param headerHeight - Header height to add as Y offset
  * @returns 4-corner bounding box [[x1,y1], [x1,y2], [x2,y2], [x2,y1]]
  */
 function generateBoundingBox(
@@ -121,34 +132,29 @@ function generateBoundingBox(
   xPosition: number,
   rowYStart: number,
   stackHeightBelow: number,
-  rowMaxHeight: number
+  rowMaxHeight: number,
+  frameBorder: number = 0,
+  headerHeight: number = 0
 ): number[][] {
-  // Frontend rendering logic:
-  // 1. Row starts at rowYStart (top edge)
-  // 2. Row bottom = rowYStart + rowMaxHeight
-  // 3. Items are bottom-aligned, so we work from bottom up
-  
+  // Calculate content-relative coordinates first
   const rowBottom = rowYStart + rowMaxHeight;
-  
-  // Item bottom edge (accounting for items stacked below)
   const itemBottom = rowBottom - stackHeightBelow;
-  
-  // Item top edge
   const itemTop = itemBottom - item.height;
-  
-  // Item left edge (stack X position)
   const itemLeft = xPosition;
-  
-  // Item right edge
   const itemRight = xPosition + item.width;
   
-  // Return 4 corners: [top-left, bottom-left, bottom-right, top-right]
-  // This matches typical polygon/bounding box format
+  // Apply offsets to convert to absolute refrigerator coordinates
+  // X offset: frame border on left side
+  // Y offset: frame border on top + header height
+  const offsetX = frameBorder;
+  const offsetY = frameBorder + headerHeight;
+  
+  // Return 4 corners with absolute coordinates
   return [
-    [Math.round(itemLeft), Math.round(itemTop)],       // Top-left
-    [Math.round(itemLeft), Math.round(itemBottom)],    // Bottom-left
-    [Math.round(itemRight), Math.round(itemBottom)],   // Bottom-right
-    [Math.round(itemRight), Math.round(itemTop)]       // Top-right
+    [Math.round(itemLeft + offsetX), Math.round(itemTop + offsetY)],       // Top-left
+    [Math.round(itemLeft + offsetX), Math.round(itemBottom + offsetY)],    // Bottom-left
+    [Math.round(itemRight + offsetX), Math.round(itemBottom + offsetY)],   // Bottom-right
+    [Math.round(itemRight + offsetX), Math.round(itemTop + offsetY)]       // Top-right
   ];
 }
 
@@ -169,15 +175,25 @@ function generateSectionPolygon(rowMeta: RowMetadata): number[][] {
  * CRITICAL: Bounding boxes MUST match frontend visual positions exactly!
  * 
  * @param {Refrigerator} frontendData - The frontend refrigerator data
- * @param {number} refrigeratorWidth - Total width in pixels (for validation)
- * @param {number} refrigeratorHeight - Total height in pixels (for validation)
+ * @param {number} refrigeratorWidth - Content width in pixels (internal dimensions)
+ * @param {number} refrigeratorHeight - Content height in pixels (internal dimensions)
+ * @param {number} headerHeight - Header height in pixels (default: 100px)
+ * @param {number} grilleHeight - Grille height in pixels (default: 90px)
+ * @param {number} frameBorder - Frame border width in pixels (default: 16px)
  * @returns {BackendOutput} - Backend data with accurate bounding boxes
  */
 export function convertFrontendToBackend(
   frontendData: Refrigerator,
   refrigeratorWidth: number = 0,
-  refrigeratorHeight: number = 0
+  refrigeratorHeight: number = 0,
+  headerHeight: number = 100,
+  grilleHeight: number = 90,
+  frameBorder: number = 16
 ): BackendOutput {
+  
+  // Calculate total dimensions including all visual elements
+  const totalWidth = refrigeratorWidth + (frameBorder * 2);
+  const totalHeight = refrigeratorHeight + headerHeight + grilleHeight + (frameBorder * 2);
   
   // 1. Initialize backend structure
   const backendOutput: BackendOutput = {
@@ -189,8 +205,13 @@ export function convertFrontendToBackend(
       },
     },
     dimensions: {
-      width: refrigeratorWidth, 
-      height: refrigeratorHeight,
+      width: totalWidth, 
+      height: totalHeight,
+      // totalWidth,
+      // totalHeight,
+      // headerHeight,
+      // grilleHeight,
+      // frameBorder
     },
   };
 
@@ -222,17 +243,17 @@ export function convertFrontendToBackend(
       
       // 6. Track cumulative height from bottom of stack
       // Start at 0 for the front (bottom) product
-      let cumulativeHeight = 0;
-      
-      // 7. Process stacked items (items on top) - BOTTOM to TOP order
+      let cumulativeHeight = 0;      // 7. Process stacked items (items on top) - BOTTOM to TOP order
       const backendStackedProducts: BackendProduct[] = stackedProductsFE.map((feProduct: Item): BackendProduct | null => {
-        // Calculate bounding box for this stacked item
+        // Calculate bounding box for this stacked item WITH offsets
         const boundingBox = generateBoundingBox(
           feProduct,
           xPosition,
           rowMeta.yStart,
           cumulativeHeight,
-          rowMeta.maxHeight
+          rowMeta.maxHeight,
+          frameBorder,    // Add frame border offset
+          headerHeight    // Add header height offset
         );
         
         // Add this item's height to cumulative (building upward)
@@ -249,16 +270,16 @@ export function convertFrontendToBackend(
           width: feProduct.width,   // NEW: Include width
           height: feProduct.height, // NEW: Include height
         };
-      }).filter((p): p is BackendProduct => p !== null);
-
-      // 8. Calculate front product bounding box (bottom item)
+      }).filter((p): p is BackendProduct => p !== null);      // 8. Calculate front product bounding box (bottom item)
       // The front product sits at the bottom with all stacked items above it
       const frontBoundingBox = generateBoundingBox(
         frontProductFE,
         xPosition,
         rowMeta.yStart,
         cumulativeHeight, // All stacked items are above the front product
-        rowMeta.maxHeight
+        rowMeta.maxHeight,
+        frameBorder,    // Add frame border offset
+        headerHeight    // Add header height offset
       );
 
       // 9. Create front product entry
