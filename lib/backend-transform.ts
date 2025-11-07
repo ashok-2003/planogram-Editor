@@ -191,9 +191,9 @@ export function convertFrontendToBackend(
       const frontProductFE: Item = stackArray[0];
       
       // Skip blank spaces
-      if (frontProductFE.skuId === "sku-blank-space") {
-        return;
-      }
+      // if (frontProductFE.skuId === "sku-blank-space") {
+      //   return;
+      // }
 
       const stackedProductsFE: Item[] = stackArray.slice(1);
       const xPosition = stackXPositions[stackIndex];
@@ -204,9 +204,9 @@ export function convertFrontendToBackend(
       
       // 7. Convert stacked items (items on top)
       const backendStackedProducts: BackendProduct[] = stackedProductsFE.map((feProduct: Item): BackendProduct | null => {
-        if (feProduct.skuId === "sku-blank-space") {
-          return null; 
-        }
+        // if (feProduct.skuId === "sku-blank-space") {
+        //   return null; 
+        // }
         
         // Calculate this item's bounding box
         const boundingBox = generateBoundingBox(
@@ -245,7 +245,7 @@ export function convertFrontendToBackend(
         stacked: backendStackedProducts.length > 0 ? backendStackedProducts : null,
         Position: (stackIndex + 1).toString(), 
         "SKU-Code": frontProductFE.skuId,
-        stackSize: stackArray.filter(p => p.skuId !== "sku-blank-space").length,
+        stackSize: stackArray.filter(p => p.skuId).length-1,
         Confidence: "1.0", 
         "Bounding-Box": frontBoundingBox,
       };
