@@ -46,11 +46,13 @@ export const RowComponent = React.memo(function RowComponent({
     () => isDragging && row.stacks.some(stack => dragValidation?.validStackTargetIds.has(stack[0].id)),
     [isDragging, row.stacks, dragValidation]
   );
-  
-  const isDisabled = useMemo(
+    const isDisabled = useMemo(
     () => isDragging && !isValidRowTarget && !hasValidStackTargets,
     [isDragging, isValidRowTarget, hasValidStackTargets]
   );
+
+  // PERFORMANCE: Disable animations during drag
+  const shouldAnimate = !isDragging;
 
   return (
     <motion.div 
@@ -67,12 +69,12 @@ export const RowComponent = React.memo(function RowComponent({
       style={{ 
         height: `${row.maxHeight}px`, // EXACT height from row data
       }}
-      animate={{
+      animate={shouldAnimate ? {
         backgroundColor: isValidRowTarget && isOver 
           ? "rgba(34, 197, 94, 0.05)" 
           : undefined,
-      }}
-      transition={{ duration: 0.2 }}
+      } : undefined}
+      transition={shouldAnimate ? { duration: 0.2 } : { duration: 0 }}
     >
       {/* Shelf texture */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLXdpZHRoPSIwLjUiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=)] pointer-events-none" />
@@ -89,24 +91,32 @@ export const RowComponent = React.memo(function RowComponent({
       <SortableContext items={stackIds} strategy={horizontalListSortingStrategy}>
         {/* REMOVED px-1 padding - items align to left edge */}
         <div 
-          className="flex items-end gap-px relative z-10 h-full"
-        >
+          className="flex items-end gap-px relative z-10 h-full"        >
           {row.stacks.map((stack, index) => (
             <div key={stack[0].id} className="relative flex items-end h-full">
               {/* Drop indicator before stack */}
-              <AnimatePresence>
-                {showGhost && dropIndicator?.index === index && (
-                  <motion.div
-                    initial={{ scaleY: 0, opacity: 0 }}
-                    animate={{ scaleY: 1, opacity: 1 }}
-                    exit={{ scaleY: 0, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
-                  >
+              {/* PERFORMANCE: Disable AnimatePresence during drag */}
+              {shouldAnimate ? (
+                <AnimatePresence>
+                  {showGhost && dropIndicator?.index === index && (
+                    <motion.div
+                      initial={{ scaleY: 0, opacity: 0 }}
+                      animate={{ scaleY: 1, opacity: 1 }}
+                      exit={{ scaleY: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
+                    >
+                      <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              ) : (
+                showGhost && dropIndicator?.index === index && (
+                  <div className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5">
                     <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                )
+              )}
               
               <StackComponent 
                 stack={stack}
@@ -119,19 +129,28 @@ export const RowComponent = React.memo(function RowComponent({
           ))}
           
           {/* Drop indicator at end */}
-          <AnimatePresence>
-            {showGhost && dropIndicator?.index === row.stacks.length && (
-              <motion.div
-                initial={{ scaleY: 0, opacity: 0 }}
-                animate={{ scaleY: 1, opacity: 1 }}
-                exit={{ scaleY: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
-              >
+          {/* PERFORMANCE: Disable AnimatePresence during drag */}
+          {shouldAnimate ? (
+            <AnimatePresence>
+              {showGhost && dropIndicator?.index === row.stacks.length && (
+                <motion.div
+                  initial={{ scaleY: 0, opacity: 0 }}
+                  animate={{ scaleY: 1, opacity: 1 }}
+                  exit={{ scaleY: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5"
+                >
+                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          ) : (
+            showGhost && dropIndicator?.index === row.stacks.length && (
+              <div className="w-1 h-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-full shadow-lg mx-0.5">
                 <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-md" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            )
+          )}
         </div>
       </SortableContext>
     </motion.div>

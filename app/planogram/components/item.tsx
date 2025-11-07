@@ -9,9 +9,10 @@ import { PIXELS_PER_MM } from '@/lib/config';
 
 interface ItemProps {
   item: Item;
+  isDragging?: boolean; // NEW: Prop to disable animations during global drag
 }
 
-export const ItemComponent = React.memo(function ItemComponent({ item }: ItemProps) {
+export const ItemComponent = React.memo(function ItemComponent({ item, isDragging = false }: ItemProps) {
   const selectedItemId = usePlanogramStore((state) => state.selectedItemId);
   const selectItem = usePlanogramStore((state) => state.actions.selectItem);
   const actions = usePlanogramStore((state) => state.actions);
@@ -50,15 +51,18 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     actions.deleteSelectedItem();
-  }, [actions]);
-
-  // Reduce blank space height by 2px
+  }, [actions]);  // Reduce blank space height by 2px
   const adjustedHeight = useMemo(() => {
     return item.productType === 'BLANK' ? item.height - 4 : item.height;
   }, [item.productType, item.height]);
+
+  // PERFORMANCE: Conditionally disable animations during drag
+  const shouldAnimate = !isDragging;
+
   return (
     <>
-      <motion.div
+      {/* PERFORMANCE OPTIMIZATION: Commented out Framer Motion, replaced with plain div + CSS */}
+      {/* <motion.div
         ref={itemRef}
         onClick={handleSelect}
         style={{ 
@@ -72,28 +76,45 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
             'opacity-90 hover:opacity-100': !isSelected,
           }
         )}
-        whileHover={{ 
+        whileHover={shouldAnimate ? { 
           scale: 1.05,
           rotateY: 3,
           transition: { duration: 0.2, ease: "easeOut" }
-        }}
-        whileTap={{ 
+        } : undefined}
+        whileTap={shouldAnimate ? { 
           scale: 0.95,
           transition: { duration: 0.1 }
-        }}
-        animate={{
+        } : undefined}
+        animate={shouldAnimate ? {
           scale: isSelected ? 1.02 : 1,
           boxShadow: isSelected 
             ? "0 0 10px rgba(59, 130, 246, 0.5)" 
             : "0 2px 4px rgba(0, 0, 0, 0.1)"
-        }}
-        transition={{ 
+        } : undefined}
+        transition={shouldAnimate ? { 
           scale: { duration: 0.2 },
           boxShadow: { duration: 0.3 }
+        } : { duration: 0 }}
+      > */}
+      
+      {/* ✅ OPTIMIZED: Plain div with CSS transitions only */}
+      <div
+        ref={itemRef}
+        onClick={handleSelect}
+        style={{ 
+          width: `${item.width}px`, 
+          height: `${adjustedHeight}px` 
         }}
+        className={clsx(
+          'flex items-center justify-center cursor-pointer relative transition-opacity duration-150',
+          {
+            'ring-4 ring-blue-500 rounded-md': isSelected,
+            'opacity-90 hover:opacity-100': !isSelected,
+          }
+        )}
       >
-        {/* Selection pulse effect */}
-        {isSelected && (
+        {/* PERFORMANCE: Pulse animation removed - expensive infinite animation */}
+        {/* {isSelected && shouldAnimate && (
           <motion.div
             className="absolute inset-0 bg-blue-400 rounded-md"
             animate={{
@@ -106,27 +127,37 @@ export const ItemComponent = React.memo(function ItemComponent({ item }: ItemPro
               ease: "easeInOut"
             }}
           />
-        )}
+        )} */}
         
-        <motion.img 
+        {/* PERFORMANCE: Replaced motion.img with plain img */}
+        {/* <motion.img 
           src={item.imageUrl} 
           alt={item.name} 
           className="object-cover w-full h-full pointer-events-none relative z-10 rounded-md"
           onDragStart={(e) => e.preventDefault()}
-          whileHover={{ 
+          whileHover={shouldAnimate ? { 
             filter: "brightness(1.1) contrast(1.05)",
             transition: { duration: 0.2 }
-          }}
-        />
+          } : undefined}
+        /> */}
         
-        {/* Width measurement overlay for BLANK spaces */}
+        {/* ✅ OPTIMIZED: Plain img */}
+        <img 
+          src={item.imageUrl} 
+          alt={item.name} 
+          className="object-cover w-full h-full pointer-events-none relative z-10 rounded-md"
+          onDragStart={(e) => e.preventDefault()}
+        />
+          {/* Width measurement overlay for BLANK spaces */}
         {item.productType === 'BLANK' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
             <div className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
               {Math.round(item.width / PIXELS_PER_MM)}mm
             </div>
           </div>
-        )}      </motion.div>
+        )}
+      </div>
+      {/* </motion.div> COMMENTED OUT - replaced with plain div above */}
 
       {/* Floating Action Menu - Portaled to document body to escape drag listeners */}
       {isSelected && menuPosition && typeof window !== 'undefined' && createPortal(

@@ -342,15 +342,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       actions.switchLayout(layoutId, newLayout);
     }
   }, [initialLayouts, actions]);
-
   const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
   }, []);
-  // PERFORMANCE CONFIG: Adjust throttle interval for batching
-  // Lower = more responsive but more computation (16ms = 60fps, 32ms = 30fps, 50ms = 20fps)
-  const DRAG_THROTTLE_MS = 16; // Increased from 16ms for better batching
+
+  // PERFORMANCE CONFIG: Throttle drag events for better batching
+  // 16ms = 60fps (responsive but expensive)
+  // 32ms = 30fps (good balance)
+  // 50ms = 20fps (smoother batching, less computation)
+  const DRAG_THROTTLE_MS = 16// Reduced from 60fps to 30fps for better performance
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setShowModePrompt(false);
