@@ -6,7 +6,7 @@ import { Refrigerator } from '@/lib/types';
 import { convertFrontendToBackend } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
 
-export const StatePreview = memo(function StatePreview() {
+export const BackendStatePreview = memo(function BackendStatePreview() {
   // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
   // This prevents re-renders during drag operations (which don't change history)
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
@@ -59,7 +59,10 @@ export const StatePreview = memo(function StatePreview() {
     <div className="bg-gray-200/70 rounded-lg shadow-inner mt-8">
       <div className="p-3 border-b border-gray-700 flex justify-between items-center">
         <div>
-          <h4 className="text-lg font-semibold">Live State Preview (Backend Format)</h4> {/* <-- Updated title */}
+          <h4 className="text-lg font-semibold">Backend Format (Transformed)</h4>
+          <p className="text-xs text-gray-500 mt-1">
+            Converted with bounding boxes for ML/CV
+          </p>
         </div>
         
         <button
