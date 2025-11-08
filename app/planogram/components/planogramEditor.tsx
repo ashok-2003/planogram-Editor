@@ -9,7 +9,8 @@ import { PropertiesPanelMemo as PropertiesPanel } from './PropertiesPanel';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ItemComponent } from './item';
-import { StatePreview } from './statePreview';
+import { BackendStatePreview } from './BackendStatePreview';
+import { FrontendStatePreview } from './FrontendStatePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
@@ -276,7 +277,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [dragValidation, setDragValidation] = useState<DragValidation>(null);
   const [interactionMode, setInteractionMode] = useState<'reorder' | 'stack'>('reorder');
 
-  const [showModePrompt, setShowModePrompt] = useState(false);  const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
+  const [showModePrompt, setShowModePrompt] = useState(false); const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
@@ -342,15 +343,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
       actions.switchLayout(layoutId, newLayout);
     }
   }, [initialLayouts, actions]);
-
   const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
   }, []);
-  // PERFORMANCE CONFIG: Adjust throttle interval for batching
-  // Lower = more responsive but more computation (16ms = 60fps, 32ms = 30fps, 50ms = 20fps)
-  const DRAG_THROTTLE_MS = 16; // Increased from 16ms for better batching
+
+  // PERFORMANCE CONFIG: Throttle drag events for better batching
+  // 16ms = 60fps (responsive but expensive)
+  // 32ms = 30fps (good balance)
+  // 50ms = 20fps (smoother batching, less computation)
+  const DRAG_THROTTLE_MS = 16// Reduced from 60fps to 30fps for better performance
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setShowModePrompt(false);
@@ -394,7 +397,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   // OPTIMIZATION: Store previous drop indicator to prevent unnecessary updates
   const prevDropIndicatorRef = useRef<DropIndicator>(null);
   const dragOverThrottleRef = useRef<number>(0);
-  
+
   // Helper to compare drop indicators for equality
   const areDropIndicatorsEqual = (a: DropIndicator, b: DropIndicator): boolean => {
     if (a === b) return true;
@@ -415,10 +418,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     dragOverThrottleRef.current = now;
 
     const { active, over } = event;
-    
+
     // Calculate new drop indicator
     let newDropIndicator: DropIndicator = null;
-    
+
     if (over) {
       const activeId = active.id as string;
       const overId = over.id as string;
@@ -450,11 +453,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         }
       }
     }
-    
+
     // CRITICAL OPTIMIZATION: Only update state if drop indicator actually changed
     if (!areDropIndicatorsEqual(newDropIndicator, prevDropIndicatorRef.current)) {
       prevDropIndicatorRef.current = newDropIndicator;
-      
+
       // Batch non-urgent UI updates with startTransition
       React.startTransition(() => {
         setDropIndicator(newDropIndicator);
@@ -521,15 +524,15 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             </p>
           </div>          <div className="flex gap-2 h-14 items-center">
             {/* Rule Toggle - FIXED */}
-            <RuleToggle 
-              isEnabled={isRulesEnabled} 
-              onToggle={setIsRulesEnabled} 
+            <RuleToggle
+              isEnabled={isRulesEnabled}
+              onToggle={setIsRulesEnabled}
             />
 
             {/* Bounding Box Debug Toggle */}
-            <BoundingBoxToggle 
-              isEnabled={showBoundingBoxes} 
-              onToggle={setShowBoundingBoxes} 
+            <BoundingBoxToggle
+              isEnabled={showBoundingBoxes}
+              onToggle={setShowBoundingBoxes}
             />
 
             <button
@@ -620,15 +623,18 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           </div>
 
           {/* Right Column (3/12): Properties Panel */}
-          <div className='col-span-3 h-full'>
+          <div className='col-span-3 max-h-screen overflow-y-auto'>
             <div className='bg-white rounded-lg shadow-md border border-gray-200  overflow-hidden'>
-              <PropertiesPanel 
-                availableSkus={initialSkus} 
-                isRulesEnabled={isRulesEnabled} 
-              />
-            </div>
+              <PropertiesPanel
+                availableSkus={initialSkus}
+                isRulesEnabled={isRulesEnabled}
+              />            </div>
             <div>
-              <StatePreview/>
+              {/* Backend State Preview - Transformed with Bounding Boxes */}
+              <BackendStatePreview />
+
+              {/* Frontend State Preview - Raw Store Data */}
+              {/* <FrontendStatePreview /> */}
             </div>
           </div>
         </div>

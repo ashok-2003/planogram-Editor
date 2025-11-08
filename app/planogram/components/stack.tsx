@@ -48,7 +48,6 @@ export const StackComponent = React.memo(function StackComponent({
     () => isDraggingGlobal && dragValidation?.validStackTargetIds.has(firstItem.id),
     [isDraggingGlobal, dragValidation, firstItem.id]
   );
-
   // A stack is visually disabled if a drag is happening AND:
   // 1. Its parent row is invalid for re-ordering, AND
   // 2. It is NOT a valid target for stacking.
@@ -57,13 +56,16 @@ export const StackComponent = React.memo(function StackComponent({
     [isDraggingGlobal, isParentRowValid, isValidStackTarget]
   );
 
+  // PERFORMANCE: Disable animations during drag
+  const shouldAnimate = !isDraggingGlobal;
+
   return (
     <motion.div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      layout="position"
+      layout={shouldAnimate ? "position" : false}
       className={clsx(
         "flex flex-col items-center justify-center relative transition-all duration-200",
         "rounded-lg", // Add rounded corners for border
@@ -75,64 +77,86 @@ export const StackComponent = React.memo(function StackComponent({
           "ring-0": !isStackHighlight && !hasConflict,
         }
       )}
-      animate={{
+      animate={shouldAnimate ? {
         scale: isStackHighlight ? 1.05 : 1,
-      }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-    >
-      {/* Conflict Indicator - Red border for conflicts */}
-      <AnimatePresence>
-        {hasConflict && !isDragging && !isStackHighlight && (
-          <motion.div
-            className="absolute -inset-1 rounded-lg ring-4 ring-red-500 ring-offset-2 ring-offset-white pointer-events-none z-10"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-          />
-        )}
-      </AnimatePresence>
+      } : undefined}
+      transition={shouldAnimate ? { duration: 0.2, ease: "easeOut" } : { duration: 0 }}
+    >      {/* Conflict Indicator - Red border for conflicts */}
+      {/* PERFORMANCE: Disable AnimatePresence during drag */}
+      {shouldAnimate ? (
+        <AnimatePresence>
+          {hasConflict && !isDragging && !isStackHighlight && (
+            <motion.div
+              className="absolute -inset-1 rounded-lg ring-4 ring-red-500 ring-offset-2 ring-offset-white pointer-events-none z-10"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            />
+          )}
+        </AnimatePresence>
+      ) : (
+        hasConflict && !isDragging && !isStackHighlight && (
+          <div className="absolute -inset-1 rounded-lg ring-4 ring-red-500 ring-offset-2 ring-offset-white pointer-events-none z-10" />
+        )
+      )}
 
       {/* Stack highlight indicator - appears when can drop */}
-      <AnimatePresence>
-        {isStackHighlight && (
-          <motion.div
-            className="absolute -inset-2 rounded-lg bg-green-500/10 pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          />
-        )}
-      </AnimatePresence>
+      {/* PERFORMANCE: Disable AnimatePresence during drag */}
+      {shouldAnimate ? (
+        <AnimatePresence>
+          {isStackHighlight && (
+            <motion.div
+              className="absolute -inset-2 rounded-lg bg-green-500/10 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            />
+          )}
+        </AnimatePresence>
+      ) : (
+        isStackHighlight && (
+          <div className="absolute -inset-2 rounded-lg bg-green-500/10 pointer-events-none" />
+        )
+      )}
 
       <div className={clsx(
         "relative",
         { 'opacity-50': hasConflict && !isDragging }
       )}>
-        <AnimatePresence mode="popLayout">
-          {stack.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ y: 20, opacity: 0, scale: 0.9 }}
-              animate={{ 
-                y: 0, 
-                opacity: 1, 
-                scale: 1,
-                transition: { delay: index * 0.05 }
-              }}
-              exit={{ 
-                y: -20, 
-                opacity: 0, 
-                scale: 0.9,
-                transition: { duration: 0.2 }
-              }}
-              whileHover={{ z: 10 }}
-            >
-              <ItemComponent item={item} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {/* PERFORMANCE: Disable AnimatePresence during drag */}
+        {shouldAnimate ? (
+          <AnimatePresence mode="popLayout">
+            {stack.map((item, index) => (
+              <motion.div
+                key={item.id}
+                initial={{ y: 20, opacity: 0, scale: 0.9 }}
+                animate={{ 
+                  y: 0, 
+                  opacity: 1, 
+                  scale: 1,
+                  transition: { delay: index * 0.05 }
+                }}
+                exit={{ 
+                  y: -20, 
+                  opacity: 0, 
+                  scale: 0.9,
+                  transition: { duration: 0.2 }
+                }}
+                whileHover={{ z: 10 }}
+              >
+                <ItemComponent item={item} isDragging={isDraggingGlobal} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        ) : (
+          stack.map((item) => (
+            <div key={item.id}>
+              <ItemComponent item={item} isDragging={isDraggingGlobal} />
+            </div>
+          ))
+        )}
       </div>
     </motion.div>
   );

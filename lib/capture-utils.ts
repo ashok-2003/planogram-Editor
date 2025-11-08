@@ -1,6 +1,7 @@
 // Utility functions for capturing refrigerator screenshots
 import * as htmlToImage from 'html-to-image';
 import toast from 'react-hot-toast';
+import { PIXEL_RATIO } from './config';
 
 /**
  * Capture a DOM element as an image and download it
@@ -17,18 +18,25 @@ export async function captureElementAsImage(
     if (!element) {
       toast.error('Could not find refrigerator element to capture');
       return;
-    }
-
-    toast.loading('Capturing image...', { id: 'capture-toast' });
+    }    toast.loading('Capturing image...', { id: 'capture-toast' });
 
     // Wait a brief moment for any animations to settle and images to load
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const rect = element.getBoundingClientRect();
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);    console.log('📸 Capture dimensions:', { 
+      width, 
+      height, 
+      offsetWidth: element.offsetWidth,
+      offsetHeight: element.offsetHeight
+    });
 
-    // Capture the element as a blob with high quality
     const blob = await htmlToImage.toBlob(element, {
       cacheBust: true,
-      pixelRatio: 3, // High quality for retina displays
-      backgroundColor: '#f3f4f6', // Light gray background
+      pixelRatio: PIXEL_RATIO, // 3x quality for crisp image
+      backgroundColor: '#f3f4f6',
+      width,  
+      height,
     });
 
     if (!blob) {
@@ -51,7 +59,7 @@ export async function captureElementAsImage(
     // Cleanup
     URL.revokeObjectURL(url);
     
-    toast.success('Image captured successfully!', { id: 'capture-toast' });
+    toast.success(`Image captured! (${width}×${height}px with PixelRatio ${PIXEL_RATIO})`, { id: 'capture-toast' });
   } catch (error) {
     console.error('Error capturing image:', error);
     toast.error('Failed to capture image. Please try again.', { id: 'capture-toast' });
@@ -62,53 +70,68 @@ export async function captureElementAsImage(
  * Copy element as image to clipboard
  * @param elementId - The ID of the element to capture
  */
-export async function copyElementToClipboard(elementId: string): Promise<void> {
-  try {
-    const element = document.getElementById(elementId);
+
+// clipboard feature is not required
+
+// export async function copyElementToClipboard(elementId: string): Promise<void> {
+//   try {
+//     const element = document.getElementById(elementId);
     
-    if (!element) {
-      toast.error('Could not find refrigerator element to capture');
-      return;
-    }
+//     if (!element) {
+//       toast.error('Could not find refrigerator element to capture');
+//       return;
+//     }
 
-    // Check if clipboard API is supported
-    if (!navigator.clipboard || !navigator.clipboard.write) {
-      toast.error('Clipboard not supported in this browser');
-      return;
-    }
+//     // Check if clipboard API is supported
+//     if (!navigator.clipboard || !navigator.clipboard.write) {
+//       toast.error('Clipboard not supported in this browser');
+//       return;
+//     }    toast.loading('Copying to clipboard...', { id: 'copy-toast' });
 
-    toast.loading('Copying to clipboard...', { id: 'copy-toast' });
+//     // Wait a brief moment for any animations to settle and images to load
+//     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Wait a brief moment for any animations to settle and images to load
-    await new Promise(resolve => setTimeout(resolve, 100));
+//     // Get actual element dimensions INCLUDING padding/border
+//     // getBoundingClientRect includes padding, border, and content
+//     const rect = element.getBoundingClientRect();
+//     const width = Math.round(rect.width);
+//     const height = Math.round(rect.height);    console.log('📋 Clipboard dimensions:', { 
+//       width, 
+//       height, 
+//       offsetWidth: element.offsetWidth,
+//       offsetHeight: element.offsetHeight
+//     });
 
-    // Capture the element as a blob
-    const blob = await htmlToImage.toBlob(element, {
-      cacheBust: true,
-      pixelRatio: 3,
-      backgroundColor: '#f3f4f6',
-    });
+//     // Capture the element as a blob with HIGH QUALITY
+//     // pixelRatio: 2 or 3 = Higher quality but maintains display dimensions
+//     const blob = await htmlToImage.toBlob(element, {
+//       cacheBust: true,
+//       pixelRatio: 3, // 3x quality for crisp image
+//       backgroundColor: '#f3f4f6',
+//       width,  // Display dimensions (not affected by pixelRatio)
+//       height, // Display dimensions (not affected by pixelRatio)
+//     });
 
-    if (!blob) {
-      toast.error('Failed to create image', { id: 'copy-toast' });
-      return;
-    }
+//     if (!blob) {
+//       toast.error('Failed to create image', { id: 'copy-toast' });
+//       return;
+//     }
 
-    try {
-      // Write to clipboard
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'image/png': blob
-        })
-      ]);
+//     try {
+//       // Write to clipboard
+//       await navigator.clipboard.write([
+//         new ClipboardItem({
+//           'image/png': blob
+//         })
+//       ]);
       
-      toast.success('Copied to clipboard!', { id: 'copy-toast' });
-    } catch (clipboardError) {
-      console.error('Clipboard write error:', clipboardError);
-      toast.error('Failed to copy to clipboard', { id: 'copy-toast' });
-    }
-  } catch (error) {
-    console.error('Error copying to clipboard:', error);
-    toast.error('Failed to copy image. Please try again.', { id: 'copy-toast' });
-  }
-}
+//       toast.success(`Copied to clipboard! (${width}×${height}px)`, { id: 'copy-toast' });
+//     } catch (clipboardError) {
+//       console.error('Clipboard write error:', clipboardError);
+//       toast.error('Failed to copy to clipboard', { id: 'copy-toast' });
+//     }
+//   } catch (error) {
+//     console.error('Error copying to clipboard:', error);
+//     toast.error('Failed to copy image. Please try again.', { id: 'copy-toast' });
+//   }
+// }
