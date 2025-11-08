@@ -1,6 +1,14 @@
-import { Refrigerator, Row, Item } from './types'; // <-- Import your frontend types
+import { Refrigerator, Row, Item } from './types';
+import { 
+  generateBoundingBox, 
+  generateSectionPolygon,
+  scaleBackendBoundingBoxes
+} from './bounding-box-utils';
 
-// --- (NEW) Define types for the Backend structure ---
+// Re-export for convenience
+export { scaleBackendBoundingBoxes };
+
+// --- Define types for the Backend structure ---
 
 export interface BackendProduct {
   product: string;
@@ -104,214 +112,7 @@ function calculateStackPositions(row: Row): number[] {
   return positions;
 }
 
-/**
- * Generate bounding box for an item
- * Coordinates are calculated with ABSOLUTE positioning
- * (includes frame border and header offsets)
- * 
- * Origin (0,0) is at the top-left of the entire refrigerator component.
- * 
- * Frontend CSS logic:
- * - Frame border: 16px on all sides
- * - Header: 100px height at top
- * - Content area: Rows stacked vertically (no gaps between rows)
- * - Items: Bottom-aligned within rows (items-end)
- * - Stacks: 1px gap between them (gap-x-px)
- * 
- * @param item - The item to generate bounding box for
- * @param xPosition - X position relative to content area (left edge of stack)
- * @param rowYStart - Y position relative to content area (top edge of row)
- * @param stackHeightBelow - Total height of items below this one in stack
- * @param rowMaxHeight - Maximum height of the row
- * @param frameBorder - Frame border width to add as X and Y offset
- * @param headerHeight - Header height to add as Y offset
- * @returns 4-corner bounding box [[x1,y1], [x1,y2], [x2,y2], [x2,y1]]
- */
-function generateBoundingBox(
-  item: Item,
-  xPosition: number,
-  rowYStart: number,
-  stackHeightBelow: number,
-  rowMaxHeight: number,
-  frameBorder: number = 0,
-  headerHeight: number = 0
-): number[][] {
-  // Calculate content-relative coordinates first
-  const rowBottom = rowYStart + rowMaxHeight;
-  const itemBottom = rowBottom - stackHeightBelow;
-  const itemTop = itemBottom - item.height;
-  const itemLeft = xPosition;
-  const itemRight = xPosition + item.width;
-  
-  // Apply offsets to convert to absolute refrigerator coordinates
-  // X offset: frame border on left side
-  // Y offset: frame border on top + header height
-  const offsetX = frameBorder;
-  const offsetY = frameBorder + headerHeight;
-  
-  // Return 4 corners with absolute coordinates
-  return [
-    [Math.round(itemLeft + offsetX), Math.round(itemTop + offsetY)],       // Top-left
-    [Math.round(itemLeft + offsetX), Math.round(itemBottom + offsetY)],    // Bottom-left
-    [Math.round(itemRight + offsetX), Math.round(itemBottom + offsetY)],   // Bottom-right
-    [Math.round(itemRight + offsetX), Math.round(itemTop + offsetY)]       // Top-right
-  ];
-}
-
-/**
- * Generate section polygon outline (optional, can be empty array)
- */
-function generateSectionPolygon(rowMeta: RowMetadata): number[][] {
-  // For now, return empty array as it's not critical
-  // Can be implemented later if backend requires it
-  return [];
-}
-
-/**
- * Scale all bounding boxes in the backend output by a pixel ratio.
- * This is used to match bounding box coordinates to captured images.
- * 
- * When capturing with pixelRatio: 3, the image is rendered at 3x resolution.
- * So a 301x788px browser element becomes a 903x2364px image.
- * Bounding boxes must be scaled by 3x to match the image coordinates.
- * 
- * @param backendData - The backend output with bounding boxes
- * @param pixelRatio - The pixel ratio to scale by (e.g., 3 for high-quality capture)
- * @returns New backend output with scaled bounding boxes
- */
-export function scaleBackendBoundingBoxes(
-  backendData: BackendOutput,
-  pixelRatio: number = 3
-): BackendOutput {
-  // Deep clone to avoid mutating original data
-  const scaledOutput: BackendOutput = JSON.parse(JSON.stringify(backendData));
-  
-  // Helper function to scale a single bounding box
-  const scaleBoundingBox = (bbox: number[][]): number[][] => {
-    return bbox.map(([x, y]) => [
-      Math.round(x * pixelRatio),
-      Math.round(y * pixelRatio)
-    ]);
-  };
-  
-  // Helper function to scale a product and its stacked items recursively
-  const scaleProduct = (product: BackendProduct): void => {
-    // Scale this product's bounding box
-    product["Bounding-Box"] = scaleBoundingBox(product["Bounding-Box"]);
-    
-    // Scale width and height
-    product.width = Math.round(product.width * pixelRatio);
-    product.height = Math.round(product.height * pixelRatio);
-    
-    // Recursively scale stacked products
-    if (product.stacked && Array.isArray(product.stacked)) {
-      product.stacked.forEach(stackedProduct => scaleProduct(stackedProduct));
-    }
-  };
-  
-  // Scale all sections and products
-  scaledOutput.Cooler["Door-1"].Sections.forEach(section => {
-    // Scale section polygon if it exists
-    if (section.data && section.data.length > 0) {
-      section.data = scaleBoundingBox(section.data);
-    }
-    
-    // Scale all products in this section
-    section.products.forEach(product => scaleProduct(product));
-  });
-  
-  // Scale dimensions
-  scaledOutput.dimensions.width = Math.round(scaledOutput.dimensions.width * pixelRatio);
-  scaledOutput.dimensions.height = Math.round(scaledOutput.dimensions.height * pixelRatio);
-  
-  if (scaledOutput.dimensions.totalWidth) {
-    scaledOutput.dimensions.totalWidth = Math.round(scaledOutput.dimensions.totalWidth * pixelRatio);
-  }
-  if (scaledOutput.dimensions.totalHeight) {
-    scaledOutput.dimensions.totalHeight = Math.round(scaledOutput.dimensions.totalHeight * pixelRatio);
-  }
-  if (scaledOutput.dimensions.headerHeight) {
-    scaledOutput.dimensions.headerHeight = Math.round(scaledOutput.dimensions.headerHeight * pixelRatio);
-  }
-  if (scaledOutput.dimensions.grilleHeight) {
-    scaledOutput.dimensions.grilleHeight = Math.round(scaledOutput.dimensions.grilleHeight * pixelRatio);
-  }
-  if (scaledOutput.dimensions.frameBorder) {
-    scaledOutput.dimensions.frameBorder = Math.round(scaledOutput.dimensions.frameBorder * pixelRatio);
-  }
-  
-  return scaledOutput;
-}
-
-/**
- * Log comparison between browser and scaled coordinates for debugging
- * Useful for verifying scaling is working correctly
- * 
- * @param backendData - The backend output with browser coordinates
- * @param pixelRatio - The pixel ratio to scale by (default: 3)
- */
-export function logScalingComparison(
-  backendData: BackendOutput,
-  pixelRatio: number = 3
-): void {
-  const scaledData = scaleBackendBoundingBoxes(backendData, pixelRatio);
-  
-  console.group('🎯 Bounding Box Scaling Comparison');
-  console.log(`Pixel Ratio: ${pixelRatio}x`);
-  console.log('━'.repeat(80));
-  
-  // Log dimensions
-  console.group('📐 Dimensions');
-  console.log('Browser (1x):', {
-    width: backendData.dimensions.width,
-    height: backendData.dimensions.height,
-  });
-  console.log(`Scaled (${pixelRatio}x):`, {
-    width: scaledData.dimensions.width,
-    height: scaledData.dimensions.height,
-  });
-  console.groupEnd();
-  
-  // Log first product from first section
-  const firstSection = backendData.Cooler["Door-1"].Sections[0];
-  const scaledFirstSection = scaledData.Cooler["Door-1"].Sections[0];
-  
-  if (firstSection?.products[0]) {
-    const browserProduct = firstSection.products[0];
-    const scaledProduct = scaledFirstSection.products[0];
-    
-    console.group('📦 First Product Example');
-    console.log('Product:', browserProduct.product);
-    console.log('SKU:', browserProduct["SKU-Code"]);
-    console.log('━'.repeat(80));
-    
-    console.log('Browser (1x) Bounding Box:', browserProduct["Bounding-Box"]);
-    console.log(`Scaled (${pixelRatio}x) Bounding Box:`, scaledProduct["Bounding-Box"]);
-    console.log('━'.repeat(80));
-    
-    console.log('Browser (1x) Size:', {
-      width: browserProduct.width,
-      height: browserProduct.height
-    });
-    console.log(`Scaled (${pixelRatio}x) Size:`, {
-      width: scaledProduct.width,
-      height: scaledProduct.height
-    });
-    console.groupEnd();
-  }
-  
-  // Log totals
-  const browserCount = backendData.Cooler["Door-1"].Sections.reduce(
-    (sum, section) => sum + section.products.length, 0
-  );
-  
-  console.log('━'.repeat(80));
-  console.log(`📊 Total Products Scaled: ${browserCount}`);
-  console.log('✅ All coordinates multiplied by', pixelRatio);
-  console.groupEnd();
-}
-
-// --- (UPDATED) Your Type-Safe Converter Function ---
+// --- Type-Safe Converter Function ---
 
 /**
  * Converts the frontend row data back into the backend 'Sections' format with bounding boxes.
@@ -365,11 +166,9 @@ export function convertFrontendToBackend(
   
   rowKeys.forEach((rowKey, rowIndex) => {
     const currentRow: Row = frontendData[rowKey];
-    const rowMeta = rowMetadata[rowIndex];
-
-    // 3. Create section for this row
+    const rowMeta = rowMetadata[rowIndex];    // 3. Create section for this row
     const newSection: BackendSection = {
-      data: generateSectionPolygon(rowMeta),
+      data: generateSectionPolygon(rowMeta.yStart, rowMeta.yEnd, refrigeratorWidth),
       position: rowIndex + 1,
       products: [],
     };
