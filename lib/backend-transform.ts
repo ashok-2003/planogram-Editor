@@ -4,6 +4,7 @@ import {
   generateSectionPolygon,
   scaleBackendBoundingBoxes
 } from './bounding-box-utils';
+import { PIXEL_RATIO } from './config';
 
 // Re-export for convenience
 export { scaleBackendBoundingBoxes };
@@ -52,7 +53,8 @@ export interface BackendOutput {
     totalHeight?: number;  // NEW: Total height including header + grille + frame
     headerHeight?: number; // NEW: Header height
     grilleHeight?: number; // NEW: Grille height
-    frameBorder?: number;  // NEW: Frame border width
+    frameBorder?: number;
+    BoundingBoxScale?:number  // NEW: Frame border width
   };
 }
 
@@ -152,6 +154,7 @@ export function convertFrontendToBackend(
     dimensions: {
       width: totalWidth, 
       height: totalHeight,
+      BoundingBoxScale: PIXEL_RATIO
       // totalWidth,
       // totalHeight,
       // headerHeight,
