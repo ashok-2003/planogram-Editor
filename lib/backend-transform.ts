@@ -167,6 +167,150 @@ function generateSectionPolygon(rowMeta: RowMetadata): number[][] {
   return [];
 }
 
+/**
+ * Scale all bounding boxes in the backend output by a pixel ratio.
+ * This is used to match bounding box coordinates to captured images.
+ * 
+ * When capturing with pixelRatio: 3, the image is rendered at 3x resolution.
+ * So a 301x788px browser element becomes a 903x2364px image.
+ * Bounding boxes must be scaled by 3x to match the image coordinates.
+ * 
+ * @param backendData - The backend output with bounding boxes
+ * @param pixelRatio - The pixel ratio to scale by (e.g., 3 for high-quality capture)
+ * @returns New backend output with scaled bounding boxes
+ */
+export function scaleBackendBoundingBoxes(
+  backendData: BackendOutput,
+  pixelRatio: number = 3
+): BackendOutput {
+  // Deep clone to avoid mutating original data
+  const scaledOutput: BackendOutput = JSON.parse(JSON.stringify(backendData));
+  
+  // Helper function to scale a single bounding box
+  const scaleBoundingBox = (bbox: number[][]): number[][] => {
+    return bbox.map(([x, y]) => [
+      Math.round(x * pixelRatio),
+      Math.round(y * pixelRatio)
+    ]);
+  };
+  
+  // Helper function to scale a product and its stacked items recursively
+  const scaleProduct = (product: BackendProduct): void => {
+    // Scale this product's bounding box
+    product["Bounding-Box"] = scaleBoundingBox(product["Bounding-Box"]);
+    
+    // Scale width and height
+    product.width = Math.round(product.width * pixelRatio);
+    product.height = Math.round(product.height * pixelRatio);
+    
+    // Recursively scale stacked products
+    if (product.stacked && Array.isArray(product.stacked)) {
+      product.stacked.forEach(stackedProduct => scaleProduct(stackedProduct));
+    }
+  };
+  
+  // Scale all sections and products
+  scaledOutput.Cooler["Door-1"].Sections.forEach(section => {
+    // Scale section polygon if it exists
+    if (section.data && section.data.length > 0) {
+      section.data = scaleBoundingBox(section.data);
+    }
+    
+    // Scale all products in this section
+    section.products.forEach(product => scaleProduct(product));
+  });
+  
+  // Scale dimensions
+  scaledOutput.dimensions.width = Math.round(scaledOutput.dimensions.width * pixelRatio);
+  scaledOutput.dimensions.height = Math.round(scaledOutput.dimensions.height * pixelRatio);
+  
+  if (scaledOutput.dimensions.totalWidth) {
+    scaledOutput.dimensions.totalWidth = Math.round(scaledOutput.dimensions.totalWidth * pixelRatio);
+  }
+  if (scaledOutput.dimensions.totalHeight) {
+    scaledOutput.dimensions.totalHeight = Math.round(scaledOutput.dimensions.totalHeight * pixelRatio);
+  }
+  if (scaledOutput.dimensions.headerHeight) {
+    scaledOutput.dimensions.headerHeight = Math.round(scaledOutput.dimensions.headerHeight * pixelRatio);
+  }
+  if (scaledOutput.dimensions.grilleHeight) {
+    scaledOutput.dimensions.grilleHeight = Math.round(scaledOutput.dimensions.grilleHeight * pixelRatio);
+  }
+  if (scaledOutput.dimensions.frameBorder) {
+    scaledOutput.dimensions.frameBorder = Math.round(scaledOutput.dimensions.frameBorder * pixelRatio);
+  }
+  
+  return scaledOutput;
+}
+
+/**
+ * Log comparison between browser and scaled coordinates for debugging
+ * Useful for verifying scaling is working correctly
+ * 
+ * @param backendData - The backend output with browser coordinates
+ * @param pixelRatio - The pixel ratio to scale by (default: 3)
+ */
+export function logScalingComparison(
+  backendData: BackendOutput,
+  pixelRatio: number = 3
+): void {
+  const scaledData = scaleBackendBoundingBoxes(backendData, pixelRatio);
+  
+  console.group('🎯 Bounding Box Scaling Comparison');
+  console.log(`Pixel Ratio: ${pixelRatio}x`);
+  console.log('━'.repeat(80));
+  
+  // Log dimensions
+  console.group('📐 Dimensions');
+  console.log('Browser (1x):', {
+    width: backendData.dimensions.width,
+    height: backendData.dimensions.height,
+  });
+  console.log(`Scaled (${pixelRatio}x):`, {
+    width: scaledData.dimensions.width,
+    height: scaledData.dimensions.height,
+  });
+  console.groupEnd();
+  
+  // Log first product from first section
+  const firstSection = backendData.Cooler["Door-1"].Sections[0];
+  const scaledFirstSection = scaledData.Cooler["Door-1"].Sections[0];
+  
+  if (firstSection?.products[0]) {
+    const browserProduct = firstSection.products[0];
+    const scaledProduct = scaledFirstSection.products[0];
+    
+    console.group('📦 First Product Example');
+    console.log('Product:', browserProduct.product);
+    console.log('SKU:', browserProduct["SKU-Code"]);
+    console.log('━'.repeat(80));
+    
+    console.log('Browser (1x) Bounding Box:', browserProduct["Bounding-Box"]);
+    console.log(`Scaled (${pixelRatio}x) Bounding Box:`, scaledProduct["Bounding-Box"]);
+    console.log('━'.repeat(80));
+    
+    console.log('Browser (1x) Size:', {
+      width: browserProduct.width,
+      height: browserProduct.height
+    });
+    console.log(`Scaled (${pixelRatio}x) Size:`, {
+      width: scaledProduct.width,
+      height: scaledProduct.height
+    });
+    console.groupEnd();
+  }
+  
+  // Log totals
+  const browserCount = backendData.Cooler["Door-1"].Sections.reduce(
+    (sum, section) => sum + section.products.length, 0
+  );
+  
+  console.log('━'.repeat(80));
+  console.log(`📊 Total Products Scaled: ${browserCount}`);
+  console.log('✅ All coordinates multiplied by', pixelRatio);
+  console.groupEnd();
+}
+
 // --- (UPDATED) Your Type-Safe Converter Function ---
 
 /**
