@@ -284,6 +284,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [isLoading, setIsLoading] = useState(true);
+  const [isCaptureLoading, setIsCaptureLoading] = useState(false);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -577,19 +578,46 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             </button>
 
             <button
-              onClick={() => {
-                import('@/lib/capture-utils').then(({ captureElementAsImage }) => {
-                  captureElementAsImage('refrigerator-capture', 'planogram');
-                });
+              onClick={async () => {
+                setIsCaptureLoading(true);
+                try {
+                  const { captureElementAsImage } = await import('@/lib/capture-utils');
+                  await captureElementAsImage('refrigerator-capture', 'planogram');
+                } catch (error) {
+                  console.error('Capture failed:', error);
+                  toast.error('Failed to capture image');
+                } finally {
+                  setIsCaptureLoading(false);
+                }
               }}
-              className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-gray-700 text-white hover:bg-gray-800 shadow-md hover:shadow-lg"
-              title="Download Refrigerator Screenshot"
+              disabled={isCaptureLoading}
+              className={clsx(
+                "px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg",
+                isCaptureLoading
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-gray-700 text-white hover:bg-gray-800"
+              )}
+              title={isCaptureLoading ? "Capturing..." : "Download Refrigerator Screenshot"}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Capture
+              {isCaptureLoading ? (
+                <>
+                  {/* Spinner */}
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Capturing...</span>
+                </>
+              ) : (
+                <>
+                  {/* Camera Icon */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Capture</span>
+                </>
+              )}
             </button>
 
             {/* <div>
