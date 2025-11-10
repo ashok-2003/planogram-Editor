@@ -6,6 +6,7 @@ import { convertFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backe
 import { availableLayoutsData } from '@/lib/planogram-data';
 import { toast } from 'sonner';
 import { PIXEL_RATIO } from '@/lib/config';
+import { getElementDimensions } from '@/lib/capture-utils';
 
 export const BackendStatePreview = memo(function BackendStatePreview() {
   // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
@@ -40,19 +41,73 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
       setIsCalculating(true);
       
       // Use requestIdleCallback to run during idle time (non-blocking)
-      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-      
-      idleCallback(() => {
-        try {
-          // Get dimensions from current layout
+      const idleCallback = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));      idleCallback(() => {
+        try {          // Get dimensions from current layout (content area dimensions)
           const layoutId = currentLayoutId || 'g-26c';
           const layoutData = availableLayoutsData[layoutId];
           
+          // These are the default structural dimensions
+          const HEADER_HEIGHT = 100;
+          const GRILLE_HEIGHT = 90;
+          const FRAME_BORDER = 16;
+          
+          // FALLBACK: Use layout data dimensions as default
+          let contentWidth = layoutData?.width || 0;
+          let contentHeight = layoutData?.height || 0;
+          
+          // CRITICAL: Try to measure ACTUAL rendered element to ensure perfect alignment
+          // The captured element includes header, grille, and frame
+          try {
+            const actualTotalDimensions = getElementDimensions('refrigerator-capture');
+            
+            // Only use measured dimensions if they're valid and reasonable
+            if (actualTotalDimensions && 
+                actualTotalDimensions.width > 100 && 
+                actualTotalDimensions.height > 100) {
+              
+              // Actual total dimensions include: frame (32px total) + header (100px) + content + grille (90px)
+              // So: actualWidth = contentWidth + (2 * frameBorder)
+              //     actualHeight = contentHeight + header + grille + (2 * frameBorder)
+              
+              const measuredContentWidth = actualTotalDimensions.width - (FRAME_BORDER * 2);
+              const measuredContentHeight = actualTotalDimensions.height - HEADER_HEIGHT - GRILLE_HEIGHT - (FRAME_BORDER * 2);
+              
+              // Only override if measured dimensions are reasonable
+              if (measuredContentWidth > 50 && measuredContentHeight > 50) {
+                contentWidth = measuredContentWidth;
+                contentHeight = measuredContentHeight;
+                
+                console.log('✅ Using measured dimensions:', {
+                  total: actualTotalDimensions,
+                  content: { width: contentWidth, height: contentHeight },
+                  fallback: { width: layoutData?.width, height: layoutData?.height }
+                });
+              } else {
+                console.warn('⚠️ Measured dimensions seem invalid, using fallback:', {
+                  measured: { width: measuredContentWidth, height: measuredContentHeight },
+                  fallback: { width: contentWidth, height: contentHeight }
+                });
+              }
+            } else {
+              console.log('📐 Using layout dimensions (element not measurable):', {
+                width: contentWidth,
+                height: contentHeight
+              });
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to measure element, using layout dimensions:', error);
+            // contentWidth and contentHeight already set to fallback values above
+          }
+          
           // Pass refrigerator state and dimensions to converter
+          // The converter will ADD header, grille, and frame to create total dimensions
           const unscaledData = convertFrontendToBackend(
             refrigerator as Refrigerator,
-            layoutData?.width || 0,
-            layoutData?.height || 0
+            contentWidth,
+            contentHeight,
+            HEADER_HEIGHT,
+            GRILLE_HEIGHT,
+            FRAME_BORDER
           );
           
           // CRITICAL: Apply the pixel ratio scaling to match BoundingBoxScale

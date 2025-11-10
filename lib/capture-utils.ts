@@ -4,31 +4,58 @@ import { PIXEL_RATIO } from './config';
 import { toast } from 'sonner';
 
 /**
+ * Get the actual dimensions of the refrigerator element
+ * This is used to ensure bounding boxes match the captured image
+ * @param elementId - The ID of the element to measure
+ * @returns Object with width and height in pixels
+ */
+export function getElementDimensions(elementId: string): { width: number; height: number } | null {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    return null;
+  }
+  
+  const rect = element.getBoundingClientRect();
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  };
+}
+
+/**
  * Capture a DOM element as an image and download it
  * @param elementId - The ID of the element to capture
  * @param filename - The name of the downloaded file (without extension)
+ * @returns The actual captured dimensions (width, height) or null if failed
  */
 export async function captureElementAsImage(
   elementId: string,
   filename: string = 'refrigerator-planogram'
-): Promise<void> {
+): Promise<{ width: number; height: number } | null> {
   try {
     const element = document.getElementById(elementId);
     
     if (!element) {
       toast.error('Could not find refrigerator element to capture');
-      return;
-    }    toast.loading('Capturing image...', { id: 'capture-toast' });
+      return null;
+    }
+
+    toast.loading('Capturing image...', { id: 'capture-toast' });
 
     // Wait a brief moment for any animations to settle and images to load
     await new Promise(resolve => setTimeout(resolve, 500));
+    
     const rect = element.getBoundingClientRect();
     const width = Math.round(rect.width);
-    const height = Math.round(rect.height);    console.log('📸 Capture dimensions:', { 
+    const height = Math.round(rect.height);
+
+    console.log('📸 Capture dimensions:', { 
       width, 
       height, 
       offsetWidth: element.offsetWidth,
-      offsetHeight: element.offsetHeight
+      offsetHeight: element.offsetHeight,
+      scaledWidth: width * PIXEL_RATIO,
+      scaledHeight: height * PIXEL_RATIO
     });
 
     const blob = await htmlToImage.toBlob(element, {
@@ -37,11 +64,9 @@ export async function captureElementAsImage(
       backgroundColor: '#f3f4f6',
       width,  
       height,
-    });
-
-    if (!blob) {
+    });    if (!blob) {
       toast.error('Failed to create image', { id: 'capture-toast' });
-      return;
+      return null;
     }
 
     // Create download link
@@ -59,10 +84,14 @@ export async function captureElementAsImage(
     // Cleanup
     URL.revokeObjectURL(url);
     
-    toast.success(`Image captured! (${width}×${height}px with PixelRatio ${PIXEL_RATIO})`, { id: 'capture-toast' });
+    toast.success(`Image captured! (${width}×${height}px @ ${PIXEL_RATIO}x = ${width * PIXEL_RATIO}×${height * PIXEL_RATIO}px)`, { id: 'capture-toast' });
+    
+    // Return actual captured dimensions
+    return { width, height };
   } catch (error) {
     console.error('Error capturing image:', error);
     toast.error('Failed to capture image. Please try again.', { id: 'capture-toast' });
+    return null;
   }
 }
 
