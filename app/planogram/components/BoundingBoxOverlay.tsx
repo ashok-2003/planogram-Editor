@@ -61,8 +61,7 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
   if (!isVisible) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-50">
-      {/* Render bounding boxes for each product */}
+    <div className="absolute inset-0 pointer-events-none z-50">      {/* Render bounding boxes for each product */}
       {products.map((product: BackendProduct, index: number) => {
         const bbox = product['Bounding-Box'];
         if (!bbox || bbox.length !== 4) return null;
@@ -71,6 +70,7 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
         // But overlay is positioned inside content area, so we need to subtract offsets
         const FRAME_OFFSET = 16; // Frame border
         const HEADER_OFFSET = headerHeight; // Header height
+        const SHELF_THICKNESS_OFFSET = 10; // Shelf bottom thickness adjustment
         
         // Extract absolute coordinates from backend data
         const xLeftAbsolute = bbox[0][0];
@@ -78,11 +78,13 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
         const xRightAbsolute = bbox[2][0];
         const yBottomAbsolute = bbox[2][1];
         
-        // Convert to content-relative for rendering in overlay
+        // CRITICAL: Convert to content-relative for rendering in overlay
+        // Backend added: frameBorder + headerHeight + shelfThickness (10px)
+        // So we subtract: frameBorder + headerHeight + shelfThickness
         const xLeft = xLeftAbsolute - FRAME_OFFSET;
-        const yTop = yTopAbsolute - FRAME_OFFSET - HEADER_OFFSET;
+        const yTop = yTopAbsolute - FRAME_OFFSET - HEADER_OFFSET - SHELF_THICKNESS_OFFSET;
         const xRight = xRightAbsolute - FRAME_OFFSET;
-        const yBottom = yBottomAbsolute - FRAME_OFFSET - HEADER_OFFSET;
+        const yBottom = yBottomAbsolute - FRAME_OFFSET - HEADER_OFFSET - SHELF_THICKNESS_OFFSET;
 
         const width = xRight - xLeft;
         const height = yBottom - yTop;
@@ -93,53 +95,51 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
 
         return (
           <React.Fragment key={`bbox-${product['SKU-Code']}-${index}`}>
-            {/* Top-left corner */}
-            <div
-              className="absolute w-1 h-1 rounded-full shadow-lg"
+            {/* Bounding box rectangle with thin lines */}
+            <svg
+              className="absolute pointer-events-none"
               style={{
                 left: `${xLeft}px`,
                 top: `${yTop}px`,
-                backgroundColor: color,
-                transform: 'translate(-50%, -50%)',
+                width: `${width}px`,
+                height: `${height}px`,
               }}
-              title={`${product['SKU-Code']} - Top Left (${xLeft}, ${yTop})`}
-            />
+            >
+              {/* Rectangle outline */}
+              <rect
+                x="0"
+                y="0"
+                width={width}
+                height={height}
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                opacity="0.8"
+              />
+              
+              {/* Corner markers for better visibility */}
+              <circle cx="0" cy="0" r="2" fill={color} />
+              <circle cx={width} cy="0" r="2" fill={color} />
+              <circle cx="0" cy={height} r="2" fill={color} />
+              <circle cx={width} cy={height} r="2" fill={color} />
+            </svg>
             
-            {/* Top-right corner */}
+            {/* Label with product name */}
             <div
-              className="absolute w-1 h-1 rounded-full shadow-lg"
-              style={{
-                left: `${xRight}px`,
-                top: `${yTop}px`,
-                backgroundColor: color,
-                transform: 'translate(-50%, -50%)',
-              }}
-              title={`${product['SKU-Code']} - Top Right (${xRight}, ${yTop})`}
-            />
-            
-            {/* Bottom-left corner */}
-            <div
-              className="absolute w-1 h-1 rounded-full shadow-lg"
+              className="absolute text-[9px] font-bold px-1 py-0.5 rounded pointer-events-none"
               style={{
                 left: `${xLeft}px`,
-                top: `${yBottom}px`,
+                top: `${yTop - 14}px`,
                 backgroundColor: color,
-                transform: 'translate(-50%, -50%)',
+                color: 'white',
+                textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                whiteSpace: 'nowrap',
               }}
-              title={`${product['SKU-Code']} - Bottom Left (${xLeft}, ${yBottom})`}
-            />
-            
-            {/* Bottom-right corner */}
-            <div
-              className="absolute w-1 h-1 rounded-full shadow-lg"
-              style={{
-                left: `${xRight}px`,
-                top: `${yBottom}px`,
-                backgroundColor: color,
-                transform: 'translate(-50%, -50%)',
-              }}
-              title={`${product['SKU-Code']} - Bottom Right (${xRight}, ${yBottom})`}
-            />
+              title={`${product['SKU-Code']} - ${width}×${height}px`}
+            >
+              {product['SKU-Code'].substring(0, 12)}
+            </div>
           </React.Fragment>
         );
       })}
