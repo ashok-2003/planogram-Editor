@@ -2,9 +2,10 @@
 
 import { usePlanogramStore } from '@/lib/store';
 import { Item, Sku } from '@/lib/types';
-import { useMemo, useState, memo } from 'react';
+import { useMemo, useState, memo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PIXELS_PER_MM } from '@/lib/config';
+import { Slider } from '@/components/ui/slider';
 
 interface PropertiesPanelProps {
   availableSkus: Sku[];
@@ -19,8 +20,10 @@ interface BlankSpaceWidthAdjusterProps {
 }
 
 function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: BlankSpaceWidthAdjusterProps) {
-  const [inputValue, setInputValue] = useState(Math.round(selectedItem.width / PIXELS_PER_MM).toString());
-  
+  const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
+  const [inputValue, setInputValue] = useState(currentWidthMM.toString());
+  const [sliderValue, setSliderValue] = useState([currentWidthMM]);
+
   // OPTIMIZATION: Calculate available width based on historyIndex instead of refrigerator
   // This prevents recalculation during drag operations
   const availableWidth = useMemo(() => {
@@ -29,32 +32,53 @@ function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: 
       const row = refrigerator[rowId];
       for (const stack of row.stacks) {
         if (stack.some(item => item.id === selectedItem.id)) {
+          // FIXED: Only count the bottom (first) item of each stack
+          // Stacked items (index > 0) don't take horizontal space
           const usedWidth = row.stacks.reduce((sum, st) => {
-            return sum + st.reduce((s, item) => 
-              item.id === selectedItem.id ? 0 : s + item.width, 0
-            );
+            // Only count the first item (bottom of stack)
+            const bottomItem = st[0];
+            if (!bottomItem) return sum;
+
+            // If this is the selected item's stack, don't count it
+            if (st.some(item => item.id === selectedItem.id)) {
+              return sum;
+            }
+
+            // Add the bottom item's width (stacked items don't take horizontal space)
+            return sum + bottomItem.width;
           }, 0);
-          return row.capacity - usedWidth;
+
+          const otherStacksCount = row.stacks.filter(st => !st.some(item => item.id === selectedItem.id)).length;
+          const gapsWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
+
+          return row.capacity - usedWidth - gapsWidth;
         }
       }
     }
     return 0;
   }, [selectedItem.id, historyIndex]);
 
-  const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
   const maxWidthMM = Math.floor(availableWidth / PIXELS_PER_MM);
   const minWidthMM = 25;
-  
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = Number(e.target.value);
+
+  // Sync slider value when selectedItem changes
+  useEffect(() => {
+    const newWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
+    setSliderValue([newWidthMM]);
+    setInputValue(newWidthMM.toString());
+  }, [selectedItem.width, selectedItem.id]);
+
+  const handleSliderChange = (value: number[]) => {
+    const newValue = value[0];
+    setSliderValue(value);
     setInputValue(newValue.toString());
     onWidthChange(selectedItem.id, newValue);
   };
-  
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
-  
+
   const handleInputBlur = () => {
     const newValue = Number(inputValue);
     if (!isNaN(newValue) && newValue >= minWidthMM && newValue <= maxWidthMM) {
@@ -65,7 +89,7 @@ function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: 
       setInputValue(currentWidthMM.toString());
     }
   };
-  
+
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleInputBlur();
@@ -73,9 +97,9 @@ function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: 
   };
 
   return (
-    <div className="my-4 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+    <div className="my-4 p-3 bg-gradient-to-br from-gray-50  border rounded-sm">
       <div className="flex items-center justify-between mb-2">
-        <label className="text-xs font-semibold text-blue-900">📏 Width Adjustment</label>
+        <label className="text-xs font-semibold text-gray-900"> Width Adjustment</label>
         <div className="flex items-center gap-1">
           <input
             type="number"
@@ -86,39 +110,33 @@ function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: 
             min={minWidthMM}
             max={maxWidthMM}
             step={5}
-            className="w-14 px-2 py-1 text-xs font-semibold text-gray-900 bg-white border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-14 px-2 py-1 text-xs font-semibold text-gray-900 bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-          <span className="text-xs font-medium text-blue-700">mm</span>
+          <span className="text-xs font-medium text-gray-700">mm</span>
         </div>
-      </div>
-      
-      {/* Visual progress bar */}
-      <div className="mb-2 h-5 bg-white rounded border border-blue-300 overflow-hidden relative">
-        <div 
-          className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-200 flex items-center justify-center"
-          style={{ width: `${(currentWidthMM / maxWidthMM) * 100}%` }}
+      </div>      {/* Visual progress bar */}
+      <div className="mb-2 h-4 bg-white rounded border border-gray-300 overflow-hidden relative">
+        <div
+          className="h-full bg-gradient-to-r from-gray-400 to-gray-600 transition-all duration-200 flex items-center justify-center"
+          style={{ width: `${(sliderValue[0] / maxWidthMM) * 100}%` }}
         >
-          <span className="text-xs font-bold text-white">{currentWidthMM}mm</span>
+          <span className="text-xs font-bold text-white">{sliderValue[0]}mm</span>
         </div>
       </div>
-      
-      {/* Slider */}
-      <input
-        type="range"
+
+      {/* Shadcn Slider */}
+      <Slider
         min={minWidthMM}
         max={maxWidthMM}
         step={5}
-        value={currentWidthMM}
-        onChange={handleSliderChange}
-        className="w-full h-2 bg-blue-200 rounded appearance-none cursor-pointer"
-        style={{
-          background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentWidthMM / maxWidthMM) * 100}%, #dbeafe ${(currentWidthMM / maxWidthMM) * 100}%, #dbeafe 100%)`
-        }}
+        value={sliderValue}
+        onValueChange={handleSliderChange}
+        className="w-full my-2"
       />
-      
+
       <div className="flex justify-between text-xs text-gray-600 mt-1">
         <span>Min: {minWidthMM}mm</span>
-        <span className="text-blue-600">Max: {maxWidthMM}mm</span>
+        <span className="text-gray-600">Max: {maxWidthMM}mm</span>
       </div>
     </div>
   );
@@ -140,7 +158,7 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
       setIsReplacing(false);
       return null;
     }
-    
+
     // Get fresh refrigerator data only when historyIndex or selectedItemId changes
     const refrigerator = usePlanogramStore.getState().refrigerator;
     for (const rowId in refrigerator) {
@@ -184,15 +202,15 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-gray-800">Replace Item</h2>
-              <button 
-                onClick={() => setIsReplacing(false)} 
+              <button
+                onClick={() => setIsReplacing(false)}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <span>←</span> Back
               </button>
             </div>
             <p className="text-xs text-gray-500 mb-3">Select a product to replace '{selectedItem.name}'</p>
-            
+
             <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">
               {availableSkus.map(sku => (
                 <button
@@ -229,9 +247,9 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
 
             {/* Product Image */}
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 mb-4 flex items-center justify-center">
-              <img 
-                src={selectedItem.imageUrl} 
-                alt={selectedItem.name} 
+              <img
+                src={selectedItem.imageUrl}
+                alt={selectedItem.name}
                 className="w-20 h-20 object-contain"
               />
             </div>
@@ -245,8 +263,8 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
               </p>
             </div>            {/* Width Adjustment for Blank Spaces */}
             {selectedItem.productType === 'BLANK' && (
-              <BlankSpaceWidthAdjuster 
-                selectedItem={selectedItem} 
+              <BlankSpaceWidthAdjuster
+                selectedItem={selectedItem}
                 historyIndex={historyIndex}
                 onWidthChange={actions.updateBlankWidth}
               />
@@ -259,22 +277,22 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
               {/* Duplicate Buttons */}
               {selectedItem.constraints.stackable ? (
                 <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={actions.duplicateAndStack} 
+                  <button
+                    onClick={actions.duplicateAndStack}
                     className="text-xs bg-blue-500 text-white font-semibold py-2 px-3 rounded-md hover:bg-blue-600 transition-colors"
                   >
                     Stack
                   </button>
-                  <button 
-                    onClick={actions.duplicateAndAddNew} 
+                  <button
+                    onClick={actions.duplicateAndAddNew}
                     className="text-xs bg-blue-100 text-blue-800 font-semibold py-2 px-3 rounded-md hover:bg-blue-200 transition-colors"
                   >
                     New
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={actions.duplicateAndAddNew} 
+                <button
+                  onClick={actions.duplicateAndAddNew}
                   className="w-full text-xs bg-blue-500 text-white font-semibold py-2 px-3 rounded-md hover:bg-blue-600 transition-colors"
                 >
                   Duplicate
@@ -282,16 +300,16 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
               )}
 
               {/* Replace Button */}
-              <button 
-                onClick={() => setIsReplacing(true)} 
+              <button
+                onClick={() => setIsReplacing(true)}
                 className="w-full text-xs bg-gray-200 text-gray-800 font-semibold py-2 px-3 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Replace
               </button>
 
               {/* Delete Button */}              {selectedItem.constraints.deletable && (
-                <button 
-                  onClick={actions.deleteSelectedItem} 
+                <button
+                  onClick={actions.deleteSelectedItem}
                   className="w-full text-xs bg-red-500 text-white font-semibold py-2 px-3 rounded-md hover:bg-red-600 transition-colors"
                 >
                   Delete
