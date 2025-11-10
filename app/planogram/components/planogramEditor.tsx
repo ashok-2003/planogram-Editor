@@ -14,9 +14,8 @@ import { FrontendStatePreview } from './FrontendStatePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
-import toast from 'react-hot-toast';
-
 import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
+import { toast } from 'sonner';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 

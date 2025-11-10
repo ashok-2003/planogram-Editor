@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { Refrigerator, Item, Sku } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
-import toast from 'react-hot-toast';
 import { produce } from 'immer';
 import { PIXELS_PER_MM } from './config';
+import { toast } from 'sonner';
 
 type StackLocation = { rowId: string; stackIndex: number; itemIndex: number; };
 

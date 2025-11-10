@@ -1,7 +1,7 @@
 // Utility functions for capturing refrigerator screenshots
 import * as htmlToImage from 'html-to-image';
-import toast from 'react-hot-toast';
 import { PIXEL_RATIO } from './config';
+import { toast } from 'sonner';
 
 /**
  * Capture a DOM element as an image and download it

@@ -1,7 +1,7 @@
 'use client';
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState, memo } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export const FrontendStatePreview = memo(function FrontendStatePreview() {
   // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
