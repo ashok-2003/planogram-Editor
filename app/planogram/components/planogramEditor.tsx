@@ -16,6 +16,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { runValidation, findConflicts } from '@/lib/validation';
 import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
@@ -243,6 +252,53 @@ const LayoutSelector = React.memo(({ layouts, selectedLayout, onLayoutChange }: 
 });
 LayoutSelector.displayName = 'LayoutSelector';
 
+// --- Discard Confirmation Dialog ---
+const DiscardConfirmDialog = React.memo(({ 
+  open, 
+  onOpenChange, 
+  onConfirm 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  onConfirm: () => void; 
+}) => {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className=" font-bold flex items-center gap-2 text-red-500">
+            Are you sure?
+          </DialogTitle>
+          <DialogDescription className="pt-2">
+            This action <strong>cannot be undone</strong>. You will lose all your changes and the planogram will be reset to empty.
+          </DialogDescription>
+        </DialogHeader>        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            variant="outline"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              onConfirm();
+              onOpenChange(false);
+            }}
+            variant="destructive"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            ok
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+});
+DiscardConfirmDialog.displayName = 'DiscardConfirmDialog';
 
 export type DropIndicator = {
   targetId: string;
@@ -280,10 +336,10 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
-
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
   const [isLoading, setIsLoading] = useState(true);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -342,12 +398,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     if (newLayout) {
       actions.switchLayout(layoutId, newLayout);
     }
-  }, [initialLayouts, actions]);
-  const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
+  }, [initialLayouts, actions]);  const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
   }, []);
+
+  // Handler for discard confirmation
+  const handleDiscardConfirm = useCallback(() => {
+    actions.clearDraft();
+    toast.success('All changes discarded');
+  }, [actions]);
 
   // PERFORMANCE CONFIG: Throttle drag events for better batching
   // 16ms = 60fps (responsive but expensive)
@@ -566,7 +627,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
               </svg>
             </button>            <button
-              onClick={actions.clearDraft}
+              onClick={() => setShowDiscardDialog(true)}
               className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md hover:shadow-lg"
               title="Clear All Items"
             >
@@ -670,9 +731,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
         <DragOverlay>
           {activeItem ? <ItemComponent item={activeItem as Item} /> : null}
         </DragOverlay>
-      </DndContext>
-
-      {/* Modals and Prompts */}
+      </DndContext>      {/* Modals and Prompts */}
       <AnimatePresence>
         {isRulesEnabled && conflictIds.length > 0 && (
           <motion.div
@@ -700,6 +759,13 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Discard Confirmation Dialog */}
+      <DiscardConfirmDialog
+        open={showDiscardDialog}
+        onOpenChange={setShowDiscardDialog}
+        onConfirm={handleDiscardConfirm}
+      />
     </div>
   );
 }
