@@ -51,13 +51,29 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     actions.deleteSelectedItem();
-  }, [actions]);  // Reduce blank space height by 2px
+  }, [actions]);
+
+  // Reduce blank space height by 2px
   const adjustedHeight = useMemo(() => {
     return item.productType === 'BLANK' ? item.height - 4 : item.height;
   }, [item.productType, item.height]);
 
   // PERFORMANCE: Conditionally disable animations during drag
   const shouldAnimate = !isDragging;
+
+  // ✅ ADDED: Detect double-click outside to unselect
+  useEffect(() => {
+    const handleOutsideDoubleClick = (e: MouseEvent) => {
+      if (!isSelected) return;
+      const target = e.target as Node;
+      const menu = document.querySelector('.floating-action-menu'); // reference to menu below
+      if (itemRef.current && !itemRef.current.contains(target) && menu && !menu.contains(target)) {
+        selectItem(null);
+      }
+    };
+    document.addEventListener('dblclick', handleOutsideDoubleClick);
+    return () => document.removeEventListener('dblclick', handleOutsideDoubleClick);
+  }, [isSelected, selectItem]);
 
   return (
     <>
@@ -162,7 +178,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
       {/* Floating Action Menu - Portaled to document body to escape drag listeners */}
       {isSelected && menuPosition && typeof window !== 'undefined' && createPortal(
         <div
-          className="fixed z-[10000]"
+          className="fixed z-[10000] floating-action-menu" // ✅ ADDED CLASS for outside detection
           style={{
             top: `${menuPosition.top}px`,
             left: `${menuPosition.left}px`,

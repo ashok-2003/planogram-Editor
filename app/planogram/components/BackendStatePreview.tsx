@@ -1,10 +1,10 @@
 'use client';
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState, memo } from 'react';
-import toast from 'react-hot-toast';
 import { Refrigerator } from '@/lib/types';
 import { convertFrontendToBackend } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
+import { toast } from 'sonner';
 
 export const BackendStatePreview = memo(function BackendStatePreview() {
   // OPTIMIZATION: Only subscribe to historyIndex to detect state changes

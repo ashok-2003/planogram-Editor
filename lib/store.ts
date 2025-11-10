@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { Refrigerator, Item, Sku } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
-import toast from 'react-hot-toast';
 import { produce } from 'immer';
 import { PIXELS_PER_MM } from './config';
+import { toast } from 'sonner';
 
 type StackLocation = { rowId: string; stackIndex: number; itemIndex: number; };
 
@@ -473,8 +473,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
     // ========================================
     // Blank Space Width Update
     // ========================================
-    
-    updateBlankWidth: (itemId: string, newWidthMM: number) => {
+      updateBlankWidth: (itemId: string, newWidthMM: number) => {
       set(state => {
         const { findStackLocation } = get();
         const location = findStackLocation(itemId);
@@ -493,15 +492,30 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         }
         
         const row = state.refrigerator[location.rowId];
-          // Calculate used width (excluding current item)
+        
+        // CRITICAL FIX: Only count the bottom (first) item of each stack
+        // Stacked items (index > 0) don't take horizontal space
         const usedWidth = row.stacks.reduce((sum, stack) => {
-          return sum + stack.reduce((s, stackItem) => 
-            stackItem.id === itemId ? 0 : s + stackItem.width, 0
-          );
+          // Only count the first item (bottom of stack)
+          const bottomItem = stack[0];
+          if (!bottomItem) return sum;
+          
+          // If this is the selected item's stack, don't count it
+          if (stack.some(stackItem => stackItem.id === itemId)) {
+            return sum;
+          }
+          
+          // Add the bottom item's width (stacked items don't take horizontal space)
+          return sum + bottomItem.width;
         }, 0);
         
-        // Account for gaps between stacks (1px per gap)
-        const gapWidth = Math.max(0, row.stacks.length - 1);
+        // CRITICAL FIX: Account for 1px gaps between OTHER stacks (excluding the selected one)
+        // We need to count gaps between OTHER stacks (excluding the selected one)
+        // Example: If there are 3 total stacks and we're editing one:
+        //   - Other stacks: 2
+        //   - Gaps between other stacks: 2 - 1 = 1px
+        const otherStacksCount = row.stacks.filter(stack => !stack.some(stackItem => stackItem.id === itemId)).length;
+        const gapWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
         
         const availableWidth = row.capacity - usedWidth - gapWidth;
         
