@@ -98,8 +98,8 @@ const BoundingBoxToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: bool
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="bbox-toggle" className="text-sm font-medium text-gray-700 flex items-center gap-1">
-        <span>Show Bounding Boxes</span>
-        <span className="text-xs text-gray-500">(Debug)</span>
+        <span>Bounding Box</span>
+        {/* <span className="text-xs text-gray-500">(Debug)</span> */}
       </label>
       <button
         id="bbox-toggle"

@@ -76,12 +76,16 @@ export function RefrigeratorComponent({
           }}
         >
           <div className="flex flex-col gap-2 items-center justify-between h-full">
-            <Badge variant="secondary" className="bg-white/95 text-blue-900 font-bold shadow-sm text-xs">
+            <Badge variant="default" className="bg-white/95 text-blue-900 font-bold shadow-sm text-xs">
               {dimensions.name?.toUpperCase()}
             </Badge>
+            <span className='text-xs text-white/80'>internal dimensions</span>
             <span className="text-xs text-white/95 font-semibold bg-black/20 px-2 py-1 rounded">
-              {Math.ceil(dimensions.width + 32)}mm × {Math.ceil(dimensions.height + headerHeight + grilleHeight + 32)}mm
+              {Math.ceil(dimensions.width / PIXELS_PER_MM)}mm × {Math.ceil(dimensions.height / PIXELS_PER_MM)}mm
             </span>
+            {/* <span className="text-xs text-white/95 font-semibold bg-black/20 px-2 py-1 rounded">
+              {Math.ceil(dimensions.width + 32)}mm × {Math.ceil(dimensions.height + headerHeight + grilleHeight + 32)}mm
+            </span> */}
           </div>
         </div>
         
