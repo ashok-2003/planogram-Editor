@@ -77,11 +77,11 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
                 contentWidth = measuredContentWidth;
                 contentHeight = measuredContentHeight;
                 
-                console.log('✅ Using measured dimensions:', {
-                  total: actualTotalDimensions,
-                  content: { width: contentWidth, height: contentHeight },
-                  fallback: { width: layoutData?.width, height: layoutData?.height }
-                });
+                // console.log('✅ Using measured dimensions:', {
+                //   total: actualTotalDimensions,
+                //   content: { width: contentWidth, height: contentHeight },
+                //   fallback: { width: layoutData?.width, height: layoutData?.height }
+                // });
               } else {
                 console.warn('⚠️ Measured dimensions seem invalid, using fallback:', {
                   measured: { width: measuredContentWidth, height: measuredContentHeight },

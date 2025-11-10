@@ -53,14 +53,33 @@ export function generateBoundingBox(
   // X offset: frame border on left side
   // Y offset: frame border on top + header height
   const offsetX = frameBorder;
-  const offsetY = frameBorder + headerHeight;
+  const offsetY = frameBorder + headerHeight+ 10;
+    // CRITICAL FIX: Use floor/ceil to prevent rounding errors
+  // - Floor for top/left edges: ensures box doesn't go too high/left
+  // - Ceil for bottom/right edges: ensures box covers the full item
+  // This prevents accumulation errors in bottom rows where Math.round() would
+  // cause boxes to "float" above actual items
+  
+  const left = Math.floor(itemLeft + offsetX);
+  const right = Math.ceil(itemRight + offsetX);
+  const top = Math.floor(itemTop + offsetY);
+  const bottom = Math.ceil(itemBottom + offsetY);
+  
+  // Debug logging for verification (remove in production)
+  // if (item.name.includes('bottom') || rowYStart > 600) {
+  //   console.log(`📦 Box for ${item.name}:`, {
+  //     raw: { top: itemTop + offsetY, bottom: itemBottom + offsetY },
+  //     floored: { top, bottom },
+  //     diff: { top: (itemTop + offsetY) - top, bottom: bottom - (itemBottom + offsetY) }
+  //   });
+  // }
   
   // Return 4 corners with absolute coordinates
   return [
-    [Math.round(itemLeft + offsetX), Math.round(itemTop + offsetY)],       // Top-left
-    [Math.round(itemLeft + offsetX), Math.round(itemBottom + offsetY)],    // Bottom-left
-    [Math.round(itemRight + offsetX), Math.round(itemBottom + offsetY)],   // Bottom-right
-    [Math.round(itemRight + offsetX), Math.round(itemTop + offsetY)]       // Top-right
+    [left, top],       // Top-left
+    [left, bottom],    // Bottom-left
+    [right, bottom],   // Bottom-right
+    [right, top]       // Top-right
   ];
 }
 
