@@ -1,0 +1,770 @@
+{
+  "Cooler": {
+    "Door-1": {
+      "data": [],
+      "Sections": [
+        {
+          "data": [],
+          "position": 1,
+          "products": [
+            {
+              "product": "Pepsi Can 330ml",
+              "stacked": [
+                {
+                  "product": "Pepsi Can 330ml",
+                  "stacked": null,
+                  "Position": "sku-pepsi-can-330-1762767734076-z92vkogw8",
+                  "SKU-Code": "sku-pepsi-can-330",
+                  "stackSize": 0,
+                  "Confidence": "1.0",
+                  "Bounding-Box": [
+                    [
+                      16,
+                      201
+                    ],
+                    [
+                      16,
+                      247
+                    ],
+                    [
+                      42,
+                      247
+                    ],
+                    [
+                      42,
+                      201
+                    ]
+                  ],
+                  "width": 26,
+                  "height": 46
+                }
+              ],
+              "Position": "1",
+              "SKU-Code": "sku-pepsi-can-330",
+              "stackSize": 1,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  16,
+                  155
+                ],
+                [
+                  16,
+                  201
+                ],
+                [
+                  42,
+                  201
+                ],
+                [
+                  42,
+                  155
+                ]
+              ],
+              "width": 26,
+              "height": 46
+            },
+            {
+              "product": "Pepsi Can 330ml",
+              "stacked": [
+                {
+                  "product": "Pepsi Can 330ml",
+                  "stacked": null,
+                  "Position": "sku-pepsi-can-330-1762767732331-9g564isge",
+                  "SKU-Code": "sku-pepsi-can-330",
+                  "stackSize": 0,
+                  "Confidence": "1.0",
+                  "Bounding-Box": [
+                    [
+                      43,
+                      201
+                    ],
+                    [
+                      43,
+                      247
+                    ],
+                    [
+                      69,
+                      247
+                    ],
+                    [
+                      69,
+                      201
+                    ]
+                  ],
+                  "width": 26,
+                  "height": 46
+                }
+              ],
+              "Position": "2",
+              "SKU-Code": "sku-pepsi-can-330",
+              "stackSize": 1,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  43,
+                  155
+                ],
+                [
+                  43,
+                  201
+                ],
+                [
+                  69,
+                  201
+                ],
+                [
+                  69,
+                  155
+                ]
+              ],
+              "width": 26,
+              "height": 46
+            },
+            {
+              "product": "Pepsi Can 330ml",
+              "stacked": [
+                {
+                  "product": "Pepsi Can 330ml",
+                  "stacked": null,
+                  "Position": "sku-pepsi-can-330-1762767730588-5f4w0jwa2",
+                  "SKU-Code": "sku-pepsi-can-330",
+                  "stackSize": 0,
+                  "Confidence": "1.0",
+                  "Bounding-Box": [
+                    [
+                      70,
+                      201
+                    ],
+                    [
+                      70,
+                      247
+                    ],
+                    [
+                      96,
+                      247
+                    ],
+                    [
+                      96,
+                      201
+                    ]
+                  ],
+                  "width": 26,
+                  "height": 46
+                }
+              ],
+              "Position": "3",
+              "SKU-Code": "sku-pepsi-can-330",
+              "stackSize": 1,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  70,
+                  155
+                ],
+                [
+                  70,
+                  201
+                ],
+                [
+                  96,
+                  201
+                ],
+                [
+                  96,
+                  155
+                ]
+              ],
+              "width": 26,
+              "height": 46
+            },
+            {
+              "product": "Blank Space",
+              "stacked": null,
+              "Position": "4",
+              "SKU-Code": "sku-blank-space",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  97,
+                  116
+                ],
+                [
+                  97,
+                  247
+                ],
+                [
+                  286,
+                  247
+                ],
+                [
+                  286,
+                  116
+                ]
+              ],
+              "width": 189,
+              "height": 131
+            }
+          ]
+        },
+        {
+          "data": [],
+          "position": 2,
+          "products": [
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "1",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  16,
+                  272
+                ],
+                [
+                  16,
+                  378
+                ],
+                [
+                  48,
+                  378
+                ],
+                [
+                  48,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "2",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  49,
+                  272
+                ],
+                [
+                  49,
+                  378
+                ],
+                [
+                  81,
+                  378
+                ],
+                [
+                  81,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "3",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  82,
+                  272
+                ],
+                [
+                  82,
+                  378
+                ],
+                [
+                  114,
+                  378
+                ],
+                [
+                  114,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "4",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  115,
+                  272
+                ],
+                [
+                  115,
+                  378
+                ],
+                [
+                  147,
+                  378
+                ],
+                [
+                  147,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "5",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  148,
+                  272
+                ],
+                [
+                  148,
+                  378
+                ],
+                [
+                  180,
+                  378
+                ],
+                [
+                  180,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "6",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  181,
+                  272
+                ],
+                [
+                  181,
+                  378
+                ],
+                [
+                  213,
+                  378
+                ],
+                [
+                  213,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "7",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  214,
+                  272
+                ],
+                [
+                  214,
+                  378
+                ],
+                [
+                  246,
+                  378
+                ],
+                [
+                  246,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "8",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  247,
+                  272
+                ],
+                [
+                  247,
+                  378
+                ],
+                [
+                  279,
+                  378
+                ],
+                [
+                  279,
+                  272
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            }
+          ]
+        },
+        {
+          "data": [],
+          "position": 3,
+          "products": [
+            {
+              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "stacked": null,
+              "Position": "1",
+              "SKU-Code": "sku-aquafina-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  16,
+                  403
+                ],
+                [
+                  16,
+                  509
+                ],
+                [
+                  48,
+                  509
+                ],
+                [
+                  48,
+                  403
+                ]
+              ],
+              "width": 32,
+              "height": 106
+            },
+            {
+              "product": "PEPSI COLA 750ml PET 24 Rs40",
+              "stacked": null,
+              "Position": "2",
+              "SKU-Code": "sku-pepsi-400",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  49,
+                  401
+                ],
+                [
+                  49,
+                  509
+                ],
+                [
+                  79,
+                  509
+                ],
+                [
+                  79,
+                  401
+                ]
+              ],
+              "width": 30,
+              "height": 108
+            },
+            {
+              "product": "PEPSI COLA 750ml PET 24 Rs40",
+              "stacked": null,
+              "Position": "3",
+              "SKU-Code": "sku-pepsi-400",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  80,
+                  401
+                ],
+                [
+                  80,
+                  509
+                ],
+                [
+                  110,
+                  509
+                ],
+                [
+                  110,
+                  401
+                ]
+              ],
+              "width": 30,
+              "height": 108
+            }
+          ]
+        },
+        {
+          "data": [],
+          "position": 4,
+          "products": [
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "1",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  16,
+                  529
+                ],
+                [
+                  16,
+                  640
+                ],
+                [
+                  49,
+                  640
+                ],
+                [
+                  49,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "2",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  50,
+                  529
+                ],
+                [
+                  50,
+                  640
+                ],
+                [
+                  83,
+                  640
+                ],
+                [
+                  83,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "3",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  84,
+                  529
+                ],
+                [
+                  84,
+                  640
+                ],
+                [
+                  117,
+                  640
+                ],
+                [
+                  117,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "4",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  118,
+                  529
+                ],
+                [
+                  118,
+                  640
+                ],
+                [
+                  151,
+                  640
+                ],
+                [
+                  151,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "5",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  152,
+                  529
+                ],
+                [
+                  152,
+                  640
+                ],
+                [
+                  185,
+                  640
+                ],
+                [
+                  185,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "6",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  186,
+                  529
+                ],
+                [
+                  186,
+                  640
+                ],
+                [
+                  219,
+                  640
+                ],
+                [
+                  219,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "MIRINDA ORANGE 1L PET",
+              "stacked": null,
+              "Position": "7",
+              "SKU-Code": "sku-mirinda-1l",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  220,
+                  529
+                ],
+                [
+                  220,
+                  640
+                ],
+                [
+                  253,
+                  640
+                ],
+                [
+                  253,
+                  529
+                ]
+              ],
+              "width": 33,
+              "height": 111
+            },
+            {
+              "product": "STING 250ML rPET 30 RS20",
+              "stacked": null,
+              "Position": "8",
+              "SKU-Code": "sku-sting-250",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  254,
+                  586
+                ],
+                [
+                  254,
+                  640
+                ],
+                [
+                  275,
+                  640
+                ],
+                [
+                  275,
+                  586
+                ]
+              ],
+              "width": 21,
+              "height": 54
+            }
+          ]
+        }
+      ],
+      "Door-Visible": true
+    }
+  },
+  "dimensions": {
+    "width": 301,
+    "height": 745,
+    "BoundingBoxScale": 3
+  }
+}
