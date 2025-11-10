@@ -2,9 +2,10 @@
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState, memo } from 'react';
 import { Refrigerator } from '@/lib/types';
-import { convertFrontendToBackend } from '@/lib/backend-transform';
+import { convertFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
 import { toast } from 'sonner';
+import { PIXEL_RATIO } from '@/lib/config';
 
 export const BackendStatePreview = memo(function BackendStatePreview() {
   // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
@@ -29,11 +30,15 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
     const layoutData = availableLayoutsData[layoutId];
     
     // Pass refrigerator state and dimensions to converter
-    return convertFrontendToBackend(
+    const unscaledData = convertFrontendToBackend(
       refrigerator as Refrigerator,
       layoutData?.width || 0,
       layoutData?.height || 0
-    ); 
+    );
+    
+    // CRITICAL: Apply the pixel ratio scaling to match BoundingBoxScale
+    // This scales all bounding boxes by PIXEL_RATIO (e.g., 3x)
+    return scaleBackendBoundingBoxes(unscaledData, PIXEL_RATIO);
   }, [refrigerator, currentLayoutId]);
 
   // 'formattedState' is now the JSON of the *converted* backend data
@@ -57,11 +62,10 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
 
   return (
     <div className="bg-gray-200/70 rounded-lg shadow-inner mt-8">
-      <div className="p-3 border-b border-gray-700 flex justify-between items-center">
-        <div>
-          <h4 className="text-lg font-semibold">Backend Format (Transformed)</h4>
+      <div className="p-3 border-b border-gray-700 flex justify-between items-center">        <div>
+          <h4 className="text-lg font-semibold">Backend Format (Transformed & Scaled)</h4>
           <p className="text-xs text-gray-500 mt-1">
-            Converted with bounding boxes for ML/CV
+            Converted with bounding boxes scaled by {PIXEL_RATIO}x for ML/CV
           </p>
         </div>
         
