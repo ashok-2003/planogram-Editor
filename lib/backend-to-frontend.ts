@@ -20,7 +20,7 @@ interface AIBackendSection {
     position: number;
 }
 
-interface AIBackendData {
+export interface AIBackendData {
     Cooler: {
         "Door-1": {
             Sections: AIBackendSection[];
@@ -44,33 +44,6 @@ const generateUniqueId = (skuId: string): string => {
 };
 
 /**
- * Finds the best-matching layout.
- * 1. Tries to find a layout with the exact number of rows.
- * 2. If no match, defaults to 'g-26c'.
- */
-function findMatchingLayout(
-    aiSections: AIBackendSection[],
-    availableLayouts: { [key: string]: LayoutData }
-): LayoutData {
-    const shelfCount = aiSections.length;
-
-    // 1. Try to find an exact match
-    const matchingLayoutId = Object.keys(availableLayouts).find(layoutId => {
-        const layout = availableLayouts[layoutId];
-        const rowCount = Object.keys(layout.layout).length;
-        return rowCount === shelfCount;
-    });
-
-    if (matchingLayoutId) {
-        return availableLayouts[matchingLayoutId];
-    }
-
-    // 2. Default to 'g-26c'
-    // We return a deep copy to avoid mutation
-    return JSON.parse(JSON.stringify(availableLayouts['g-26c']));
-}
-
-/**
  * Creates a new frontend Item from a Sku.
  */
 function createItemFromSku(sku: Sku): Item {
@@ -89,14 +62,16 @@ function createItemFromSku(sku: Sku): Item {
  *
  * @param aiData The raw JSON data from the AI backend.
  * @param availableSkus The list of all available SKUs (from demo-sku.ts).
- * @param availableLayouts The map of all available layouts (from planogram-data.ts).
+ * @param chosenLayout The specific layout (e.g., 'g-7f') chosen by the user or matched automatically.
  * @returns A fully formed Refrigerator object for the Zustand store.
  */
 export function convertBackendToFrontend(
     aiData: AIBackendData,
     availableSkus: Sku[],
-    availableLayouts: { [key: string]: LayoutData }
+    chosenLayout: LayoutData
 ): Refrigerator {
+
+    console.log(`[Converter] Starting conversion using layout: ${chosenLayout.name}`);
 
     // 1. Create a SKU Map for fast lookups
     const skuMap = new Map<string, Sku>();
@@ -106,9 +81,8 @@ export function convertBackendToFrontend(
 
     const aiSections = aiData.Cooler["Door-1"].Sections;
 
-    // 2. Select the base refrigerator layout
-    const baseLayoutData = findMatchingLayout(aiSections, availableLayouts);
-    const layoutTemplate = baseLayoutData.layout;
+    // 2. Use the CHOSEN layout template
+    const layoutTemplate = chosenLayout.layout;
     const layoutRowIds = Object.keys(layoutTemplate).sort();
 
     // 3. Create the new refrigerator state using Immer for safe mutation
@@ -119,14 +93,12 @@ export function convertBackendToFrontend(
         }
 
         // 4. Iterate over each AI Section (Shelf)
-        // We use index to map AI Section[0] to layoutRowIds[0]
         aiSections.forEach((section, index) => {
-            // Find the corresponding rowId for this section index
             const rowId = layoutRowIds[index];
 
-            // If AI has more shelves than our default layout, ignore them
+            // This should not happen if our layout matching is correct, but good to check.
             if (!rowId) {
-                console.warn(`AI sent ${aiSections.length} shelves, but layout 'g-26c' only has ${layoutRowIds.length}. Ignoring extra shelves.`);
+                console.warn(`[Converter] AI sent shelf at index ${index}, but layout ${chosenLayout.name} only has ${layoutRowIds.length} rows. Ignoring extra shelf.`);
                 return;
             }
 
@@ -138,30 +110,39 @@ export function convertBackendToFrontend(
                 const newStack: Item[] = [];
 
                 // 6. Check the main (bottom) product
-                const bottomSku = skuMap.get(aiProductStack["SKU-Code"]);
+                const bottomSkuCode = aiProductStack["SKU-Code"];
+                const bottomSku = skuMap.get(bottomSkuCode);
+
                 if (bottomSku) {
+                    console.log(`[Converter] Matched SKU: ${bottomSkuCode}`);
                     newStack.push(createItemFromSku(bottomSku));
+                } else {
+                    console.warn(`[Converter] SKIPPED SKU (not found): ${bottomSkuCode}`);
                 }
 
                 // 7. Check the stacked items
                 if (aiProductStack.stacked && Array.isArray(aiProductStack.stacked)) {
                     for (const aiStackedItem of aiProductStack.stacked) {
+                        const stackedSkuCode = aiStackedItem["SKU-Code"];
+                        const stackedSku = skuMap.get(stackedSkuCode);
 
-                        const stackedSku = skuMap.get(aiStackedItem["SKU-Code"]);
                         if (stackedSku) {
+                            console.log(`[Converter] Matched Stacked SKU: ${stackedSkuCode}`);
                             newStack.push(createItemFromSku(stackedSku));
+                        } else {
+                            console.warn(`[Converter] SKIPPED Stacked SKU (not found): ${stackedSkuCode}`);
                         }
                     }
                 }
 
                 // 8. Add the new stack to the row *if* we found any valid items
                 if (newStack.length > 0) {
-                    // We must respect the frontend data structure: Item[][]
                     row.stacks.push(newStack);
                 }
             }
         });
     });
 
+    console.log("[Converter] Conversion complete. Final state:", newRefrigerator);
     return newRefrigerator;
 }

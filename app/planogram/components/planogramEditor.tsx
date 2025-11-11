@@ -316,14 +316,16 @@ interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
   initialLayouts: { [key: string]: LayoutData };
-  importedLayout?: Refrigerator | null; // <-- 1. ADD THIS NEW PROP
+  importedLayout?: Refrigerator | null;
+  importedLayoutId?: string | null; // <-- NEW: The layout ID that was detected
 }
 
 export function PlanogramEditor({
   initialSkus,
   initialLayout,
   initialLayouts,
-  importedLayout = null // <-- 2. Give it a default value
+  importedLayout = null,
+  importedLayoutId = null // <-- NEW: Accept the detected layout ID
 }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const history = usePlanogramStore((state) => state.history);
@@ -342,7 +344,8 @@ export function PlanogramEditor({
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
+  // <-- FIXED: Use the imported layout ID if available, otherwise default to 'g-26c'
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>(importedLayoutId || 'g-26c');
   const [isLoading, setIsLoading] = useState(true);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
