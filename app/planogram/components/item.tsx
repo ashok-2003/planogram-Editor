@@ -124,7 +124,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
         className={clsx(
           'flex items-center justify-center cursor-pointer relative transition-opacity duration-150',
           {
-            'ring-4 ring-blue-500 rounded-md': isSelected,
+            'ring-3 ring-blue-500 rounded-none': isSelected,
             'opacity-90 hover:opacity-100': !isSelected,
           }
         )}
@@ -161,13 +161,13 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
         <img 
           src={item.imageUrl} 
           alt={item.name} 
-          className="object-cover w-full h-full pointer-events-none relative z-10 rounded-md"
+          className="object w-full h-full pointer-events-none relative z-10 rounded-none"
           onDragStart={(e) => e.preventDefault()}
         />
           {/* Width measurement overlay for BLANK spaces */}
         {item.productType === 'BLANK' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <div className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
+            <div className="bg-blue-600 text-white text-xs font-bold px-2 py-1">
               {Math.round(item.width / PIXELS_PER_MM)}mm
             </div>
           </div>
