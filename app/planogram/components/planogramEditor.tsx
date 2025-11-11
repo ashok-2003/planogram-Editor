@@ -584,11 +584,11 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               Drag, Drop, and organize product in the refrigerator and shelves.
             </p>
           </div>          <div className="flex gap-2 h-14 items-center">
-            {/* Rule Toggle - FIXED */}
-            <RuleToggle
+            {/* Rule Toggle - FIXED   Hidden for now  */}
+            {/* <RuleToggle
               isEnabled={isRulesEnabled}
               onToggle={setIsRulesEnabled}
-            />
+            /> */}
 
             {/* Bounding Box Debug Toggle */}
             <BoundingBoxToggle

@@ -8,203 +8,228 @@
           "position": 1,
           "products": [
             {
-              "product": "Pepsi Can 330ml",
-              "stacked": [
-                {
-                  "product": "Pepsi Can 330ml",
-                  "stacked": null,
-                  "Position": "sku-pepsi-can-330-1762767734076-z92vkogw8",
-                  "SKU-Code": "sku-pepsi-can-330",
-                  "stackSize": 0,
-                  "Confidence": "1.0",
-                  "Bounding-Box": [
-                    [
-                      16,
-                      201
-                    ],
-                    [
-                      16,
-                      247
-                    ],
-                    [
-                      42,
-                      247
-                    ],
-                    [
-                      42,
-                      201
-                    ]
-                  ],
-                  "width": 26,
-                  "height": 46
-                }
-              ],
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
               "Position": "1",
-              "SKU-Code": "sku-pepsi-can-330",
-              "stackSize": 1,
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  16,
-                  155
+                  48,
+                  552
                 ],
                 [
-                  16,
-                  201
+                  48,
+                  795
                 ],
                 [
-                  42,
-                  201
+                  123,
+                  795
                 ],
                 [
-                  42,
-                  155
+                  123,
+                  552
                 ]
               ],
-              "width": 26,
-              "height": 46
+              "width": 75,
+              "height": 243
             },
             {
-              "product": "Pepsi Can 330ml",
-              "stacked": [
-                {
-                  "product": "Pepsi Can 330ml",
-                  "stacked": null,
-                  "Position": "sku-pepsi-can-330-1762767732331-9g564isge",
-                  "SKU-Code": "sku-pepsi-can-330",
-                  "stackSize": 0,
-                  "Confidence": "1.0",
-                  "Bounding-Box": [
-                    [
-                      43,
-                      201
-                    ],
-                    [
-                      43,
-                      247
-                    ],
-                    [
-                      69,
-                      247
-                    ],
-                    [
-                      69,
-                      201
-                    ]
-                  ],
-                  "width": 26,
-                  "height": 46
-                }
-              ],
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
               "Position": "2",
-              "SKU-Code": "sku-pepsi-can-330",
-              "stackSize": 1,
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  43,
-                  155
+                  126,
+                  552
                 ],
                 [
-                  43,
-                  201
+                  126,
+                  795
                 ],
                 [
-                  69,
-                  201
+                  201,
+                  795
                 ],
                 [
-                  69,
-                  155
+                  201,
+                  552
                 ]
               ],
-              "width": 26,
-              "height": 46
+              "width": 75,
+              "height": 243
             },
             {
-              "product": "Pepsi Can 330ml",
-              "stacked": [
-                {
-                  "product": "Pepsi Can 330ml",
-                  "stacked": null,
-                  "Position": "sku-pepsi-can-330-1762767730588-5f4w0jwa2",
-                  "SKU-Code": "sku-pepsi-can-330",
-                  "stackSize": 0,
-                  "Confidence": "1.0",
-                  "Bounding-Box": [
-                    [
-                      70,
-                      201
-                    ],
-                    [
-                      70,
-                      247
-                    ],
-                    [
-                      96,
-                      247
-                    ],
-                    [
-                      96,
-                      201
-                    ]
-                  ],
-                  "width": 26,
-                  "height": 46
-                }
-              ],
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
               "Position": "3",
-              "SKU-Code": "sku-pepsi-can-330",
-              "stackSize": 1,
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  70,
-                  155
+                  204,
+                  552
                 ],
                 [
-                  70,
-                  201
+                  204,
+                  795
                 ],
                 [
-                  96,
-                  201
+                  279,
+                  795
                 ],
                 [
-                  96,
-                  155
+                  279,
+                  552
                 ]
               ],
-              "width": 26,
-              "height": 46
+              "width": 75,
+              "height": 243
+            },
+            {
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
+              "Position": "4",
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  282,
+                  552
+                ],
+                [
+                  282,
+                  795
+                ],
+                [
+                  357,
+                  795
+                ],
+                [
+                  357,
+                  552
+                ]
+              ],
+              "width": 75,
+              "height": 243
+            },
+            {
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
+              "Position": "5",
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  360,
+                  552
+                ],
+                [
+                  360,
+                  795
+                ],
+                [
+                  435,
+                  795
+                ],
+                [
+                  435,
+                  552
+                ]
+              ],
+              "width": 75,
+              "height": 243
+            },
+            {
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
+              "Position": "6",
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  438,
+                  552
+                ],
+                [
+                  438,
+                  795
+                ],
+                [
+                  513,
+                  795
+                ],
+                [
+                  513,
+                  552
+                ]
+              ],
+              "width": 75,
+              "height": 243
+            },
+            {
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
+              "stacked": null,
+              "Position": "7",
+              "SKU-Code": "shelfscan_00088",
+              "stackSize": 0,
+              "Confidence": "1.0",
+              "Bounding-Box": [
+                [
+                  516,
+                  552
+                ],
+                [
+                  516,
+                  795
+                ],
+                [
+                  591,
+                  795
+                ],
+                [
+                  591,
+                  552
+                ]
+              ],
+              "width": 75,
+              "height": 243
             },
             {
               "product": "Blank Space",
               "stacked": null,
-              "Position": "4",
+              "Position": "8",
               "SKU-Code": "sku-blank-space",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  97,
-                  116
+                  594,
+                  378
                 ],
                 [
-                  97,
-                  247
+                  594,
+                  795
                 ],
                 [
-                  286,
-                  247
+                  702,
+                  795
                 ],
                 [
-                  286,
-                  116
+                  702,
+                  378
                 ]
               ],
-              "width": 189,
-              "height": 131
+              "width": 108,
+              "height": 417
             }
           ]
         },
@@ -213,228 +238,200 @@
           "position": 2,
           "products": [
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MOUNTAIN DEW 2.25L PET",
               "stacked": null,
               "Position": "1",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00102",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  16,
-                  272
-                ],
-                [
-                  16,
-                  378
+                  48,
+                  798
                 ],
                 [
                   48,
-                  378
+                  1212
                 ],
                 [
-                  48,
-                  272
+                  168,
+                  1212
+                ],
+                [
+                  168,
+                  798
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 120,
+              "height": 414
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MIRINDA ORANGE MID CAL 300ML PET",
               "stacked": null,
               "Position": "2",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00087",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  49,
-                  272
+                  171,
+                  1032
                 ],
                 [
-                  49,
-                  378
+                  171,
+                  1212
                 ],
                 [
-                  81,
-                  378
+                  243,
+                  1212
                 ],
                 [
-                  81,
-                  272
+                  243,
+                  1032
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 72,
+              "height": 180
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MIRINDA ORANGE MID CAL 300ML PET",
               "stacked": null,
               "Position": "3",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00087",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  82,
-                  272
+                  246,
+                  1032
                 ],
                 [
-                  82,
-                  378
+                  246,
+                  1212
                 ],
                 [
-                  114,
-                  378
+                  318,
+                  1212
                 ],
                 [
-                  114,
-                  272
+                  318,
+                  1032
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 72,
+              "height": 180
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "PEPSI COLA 2.0L PET",
               "stacked": null,
               "Position": "4",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00134",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  115,
-                  272
+                  321,
+                  834
                 ],
                 [
-                  115,
-                  378
+                  321,
+                  1212
                 ],
                 [
-                  147,
-                  378
+                  453,
+                  1212
                 ],
                 [
-                  147,
-                  272
+                  453,
+                  834
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 132,
+              "height": 378
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MIRINDA ORANGE MID CAL 300ML PET",
               "stacked": null,
               "Position": "5",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00087",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  148,
-                  272
+                  456,
+                  1032
                 ],
                 [
-                  148,
-                  378
+                  456,
+                  1212
                 ],
                 [
-                  180,
-                  378
+                  528,
+                  1212
                 ],
                 [
-                  180,
-                  272
+                  528,
+                  1032
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 72,
+              "height": 180
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MIRINDA ORANGE MID CAL 300ML PET",
               "stacked": null,
               "Position": "6",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00087",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  181,
-                  272
+                  531,
+                  1032
                 ],
                 [
-                  181,
-                  378
+                  531,
+                  1212
                 ],
                 [
-                  213,
-                  378
+                  603,
+                  1212
                 ],
                 [
-                  213,
-                  272
+                  603,
+                  1032
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 72,
+              "height": 180
             },
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MIRINDA ORANGE MID CAL 300ML PET",
               "stacked": null,
               "Position": "7",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00087",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  214,
-                  272
+                  606,
+                  1032
                 ],
                 [
-                  214,
-                  378
+                  606,
+                  1212
                 ],
                 [
-                  246,
-                  378
+                  678,
+                  1212
                 ],
                 [
-                  246,
-                  272
+                  678,
+                  1032
                 ]
               ],
-              "width": 32,
-              "height": 106
-            },
-            {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
-              "stacked": null,
-              "Position": "8",
-              "SKU-Code": "sku-aquafina-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  247,
-                  272
-                ],
-                [
-                  247,
-                  378
-                ],
-                [
-                  279,
-                  378
-                ],
-                [
-                  279,
-                  272
-                ]
-              ],
-              "width": 32,
-              "height": 106
+              "width": 72,
+              "height": 180
             }
           ]
         },
@@ -443,318 +440,144 @@
           "position": 3,
           "products": [
             {
-              "product": "AQUAFINA 1.0 L PET 12 Rs20",
+              "product": "MOUNTAIN DEW 2.25L PET",
               "stacked": null,
               "Position": "1",
-              "SKU-Code": "sku-aquafina-1l",
+              "SKU-Code": "shelfscan_00102",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  16,
-                  403
-                ],
-                [
-                  16,
-                  509
+                  48,
+                  1215
                 ],
                 [
                   48,
-                  509
+                  1629
                 ],
                 [
-                  48,
-                  403
+                  168,
+                  1629
+                ],
+                [
+                  168,
+                  1215
                 ]
               ],
-              "width": 32,
-              "height": 106
+              "width": 120,
+              "height": 414
             },
             {
-              "product": "PEPSI COLA 750ml PET 24 Rs40",
+              "product": "MOUNTAIN DEW 2.25L PET",
               "stacked": null,
               "Position": "2",
-              "SKU-Code": "sku-pepsi-400",
+              "SKU-Code": "shelfscan_00102",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  49,
-                  401
+                  171,
+                  1215
                 ],
                 [
-                  49,
-                  509
+                  171,
+                  1629
                 ],
                 [
-                  79,
-                  509
+                  291,
+                  1629
                 ],
                 [
-                  79,
-                  401
+                  291,
+                  1215
                 ]
               ],
-              "width": 30,
-              "height": 108
+              "width": 120,
+              "height": 414
             },
             {
-              "product": "PEPSI COLA 750ml PET 24 Rs40",
+              "product": "MOUNTAIN DEW 2.25L PET",
               "stacked": null,
               "Position": "3",
-              "SKU-Code": "sku-pepsi-400",
+              "SKU-Code": "shelfscan_00102",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  80,
-                  401
+                  294,
+                  1215
                 ],
                 [
-                  80,
-                  509
+                  294,
+                  1629
                 ],
                 [
-                  110,
-                  509
+                  414,
+                  1629
                 ],
                 [
-                  110,
-                  401
+                  414,
+                  1215
                 ]
               ],
-              "width": 30,
-              "height": 108
-            }
-          ]
-        },
-        {
-          "data": [],
-          "position": 4,
-          "products": [
-            {
-              "product": "MIRINDA ORANGE 1L PET",
-              "stacked": null,
-              "Position": "1",
-              "SKU-Code": "sku-mirinda-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  16,
-                  529
-                ],
-                [
-                  16,
-                  640
-                ],
-                [
-                  49,
-                  640
-                ],
-                [
-                  49,
-                  529
-                ]
-              ],
-              "width": 33,
-              "height": 111
+              "width": 120,
+              "height": 414
             },
             {
-              "product": "MIRINDA ORANGE 1L PET",
-              "stacked": null,
-              "Position": "2",
-              "SKU-Code": "sku-mirinda-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  50,
-                  529
-                ],
-                [
-                  50,
-                  640
-                ],
-                [
-                  83,
-                  640
-                ],
-                [
-                  83,
-                  529
-                ]
-              ],
-              "width": 33,
-              "height": 111
-            },
-            {
-              "product": "MIRINDA ORANGE 1L PET",
-              "stacked": null,
-              "Position": "3",
-              "SKU-Code": "sku-mirinda-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  84,
-                  529
-                ],
-                [
-                  84,
-                  640
-                ],
-                [
-                  117,
-                  640
-                ],
-                [
-                  117,
-                  529
-                ]
-              ],
-              "width": 33,
-              "height": 111
-            },
-            {
-              "product": "MIRINDA ORANGE 1L PET",
+              "product": "MOUNTAIN DEW LIME & LEMON 2.0L PET",
               "stacked": null,
               "Position": "4",
-              "SKU-Code": "sku-mirinda-1l",
+              "SKU-Code": "shelfscan_00101",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  118,
-                  529
+                  417,
+                  1251
                 ],
                 [
-                  118,
-                  640
+                  417,
+                  1629
                 ],
                 [
-                  151,
-                  640
+                  549,
+                  1629
                 ],
                 [
-                  151,
-                  529
+                  549,
+                  1251
                 ]
               ],
-              "width": 33,
-              "height": 111
+              "width": 132,
+              "height": 378
             },
             {
-              "product": "MIRINDA ORANGE 1L PET",
+              "product": "MIRINDA MID CAL ORANGE 400ML PET",
               "stacked": null,
               "Position": "5",
-              "SKU-Code": "sku-mirinda-1l",
+              "SKU-Code": "shelfscan_00088",
               "stackSize": 0,
               "Confidence": "1.0",
               "Bounding-Box": [
                 [
-                  152,
-                  529
+                  552,
+                  1386
                 ],
                 [
-                  152,
-                  640
+                  552,
+                  1629
                 ],
                 [
-                  185,
-                  640
+                  627,
+                  1629
                 ],
                 [
-                  185,
-                  529
+                  627,
+                  1386
                 ]
               ],
-              "width": 33,
-              "height": 111
-            },
-            {
-              "product": "MIRINDA ORANGE 1L PET",
-              "stacked": null,
-              "Position": "6",
-              "SKU-Code": "sku-mirinda-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  186,
-                  529
-                ],
-                [
-                  186,
-                  640
-                ],
-                [
-                  219,
-                  640
-                ],
-                [
-                  219,
-                  529
-                ]
-              ],
-              "width": 33,
-              "height": 111
-            },
-            {
-              "product": "MIRINDA ORANGE 1L PET",
-              "stacked": null,
-              "Position": "7",
-              "SKU-Code": "sku-mirinda-1l",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  220,
-                  529
-                ],
-                [
-                  220,
-                  640
-                ],
-                [
-                  253,
-                  640
-                ],
-                [
-                  253,
-                  529
-                ]
-              ],
-              "width": 33,
-              "height": 111
-            },
-            {
-              "product": "STING 250ML rPET 30 RS20",
-              "stacked": null,
-              "Position": "8",
-              "SKU-Code": "sku-sting-250",
-              "stackSize": 0,
-              "Confidence": "1.0",
-              "Bounding-Box": [
-                [
-                  254,
-                  586
-                ],
-                [
-                  254,
-                  640
-                ],
-                [
-                  275,
-                  640
-                ],
-                [
-                  275,
-                  586
-                ]
-              ],
-              "width": 21,
-              "height": 54
+              "width": 75,
+              "height": 243
             }
           ]
         }
@@ -763,8 +586,8 @@
     }
   },
   "dimensions": {
-    "width": 301,
-    "height": 745,
+    "width": 747,
+    "height": 2013,
     "BoundingBoxScale": 3
   }
 }
