@@ -18,6 +18,16 @@ export const demoSkus: Sku[] = [
     height: Math.round(104 * PIXELS_PER_MM),
     imageUrl: 'https://storage.googleapis.com/shelfex-cdn/shelfscan/prod/02/clientUploads/4_1761898350926_02_01_02_SKJDFNDSK_1761898348308_01PNG.png',
     constraints: { stackable: true, deletable: true },
+  },{
+    skuId: 'sku-blank-space',
+    name: 'Blank Space',
+    productType: 'BLANK',
+    widthMM: 25, // Default 25mm width (minimum)
+    heightMM: 100, // Will be overridden by row height
+    width: Math.round(25 * PIXELS_PER_MM),
+    height: Math.round(100 * PIXELS_PER_MM),
+    imageUrl: 'https://placehold.co/25x100/e0e7ff/6366f1?text=.', // Blue tint for visibility
+    constraints: { stackable: false, deletable: true },
   },
   {
     skuId: 'shelfscan_00309',

@@ -23,7 +23,7 @@ export const availableLayoutsData: { [key: string]: LayoutData } = { // Explicit
   'g-10f': { 
     name: 'g-10f upright Cooler',
     width: Math.round(542 * PIXELS_PER_MM),
-    height: Math.round((1041+20) * PIXELS_PER_MM),
+    height: Math.round((1041) * PIXELS_PER_MM),
     layout: {
       'row-1': { id: 'row-1', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(347 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
       'row-2': { id: 'row-2', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(347 * PIXELS_PER_MM), allowedProductTypes: ['PET_SMALL', 'RGB'], stacks: [] },
