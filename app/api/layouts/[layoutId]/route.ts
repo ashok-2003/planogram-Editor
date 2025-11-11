@@ -4,9 +4,9 @@ import { getAvailableLayouts } from '@/lib/planogram-data';
 
 export async function GET(
   request: Request,
-  { params }: { params: { layoutId: string } }
+  { params }: { params: Promise<{ layoutId: string }> }
 ) {
-  const layoutId = params.layoutId;
+  const { layoutId } = await params;
   const layouts = await getAvailableLayouts();
   const layout = layouts[layoutId];
 
