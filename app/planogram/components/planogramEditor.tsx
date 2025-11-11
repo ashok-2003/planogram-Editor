@@ -253,14 +253,14 @@ const LayoutSelector = React.memo(({ layouts, selectedLayout, onLayoutChange }: 
 LayoutSelector.displayName = 'LayoutSelector';
 
 // --- Discard Confirmation Dialog ---
-const DiscardConfirmDialog = React.memo(({ 
-  open, 
-  onOpenChange, 
-  onConfirm 
-}: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void; 
-  onConfirm: () => void; 
+const DiscardConfirmDialog = React.memo(({
+  open,
+  onOpenChange,
+  onConfirm
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -316,9 +316,15 @@ interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
   initialLayouts: { [key: string]: LayoutData };
+  importedLayout?: Refrigerator | null; // <-- 1. ADD THIS NEW PROP
 }
 
-export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
+export function PlanogramEditor({
+  initialSkus,
+  initialLayout,
+  initialLayouts,
+  importedLayout = null // <-- 2. Give it a default value
+}: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
@@ -346,15 +352,23 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
 
   // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
-    // Initialize layout on mount
-    actions.initializeLayout(selectedLayoutId, initialLayout);
+    // 3. THIS IS THE MODIFIED LOGIC
+    if (importedLayout) {
+      // If an imported layout is provided, use it to initialize
+      actions.initializeLayout(selectedLayoutId, importedLayout);
+      toast.success('Successfully imported planogram from image!');
+    } else {
+      // Otherwise, use the default initialization (which checks localStorage)
+      actions.initializeLayout(selectedLayoutId, initialLayout);
+    }
+    // END OF MODIFICATION
 
     // Simulate minimum loading time for smooth UX
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
     return () => clearTimeout(loadingTimer);
-  }, []);
+  }, []); // This still only runs once on mount
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -398,7 +412,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     if (newLayout) {
       actions.switchLayout(layoutId, newLayout);
     }
-  }, [initialLayouts, actions]);  const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
+  }, [initialLayouts, actions]); const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
@@ -722,7 +736,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               <BackendStatePreview />
 
               {/* Frontend State Preview - Raw Store Data */}
-              {/* <FrontendStatePreview /> */}
+              <FrontendStatePreview />
             </div>
           </div>
         </div>
