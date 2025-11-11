@@ -1,10 +1,11 @@
-import { Refrigerator, Row, Item } from './types';
+import { Refrigerator, Row, Item, MultiDoorRefrigerator, DoorConfig } from './types';
 import { 
   generateBoundingBox, 
   generateSectionPolygon,
   scaleBackendBoundingBoxes
 } from './bounding-box-utils';
 import { PIXEL_RATIO } from './config';
+import { getDoorXOffset, getDoorConfigs } from './multi-door-utils';
 
 // Re-export for convenience
 export { scaleBackendBoundingBoxes };
@@ -155,11 +156,6 @@ export function convertFrontendToBackend(
       width: totalWidth, 
       height: totalHeight,
       BoundingBoxScale: PIXEL_RATIO
-      // totalWidth,
-      // totalHeight,
-      // headerHeight,
-      // grilleHeight,
-      // frameBorder
     },
   };
 
@@ -246,6 +242,144 @@ export function convertFrontendToBackend(
 
     // 10. Add section to output
     backendOutput.Cooler["Door-1"].Sections.push(newSection);
+  });
+
+  return backendOutput;
+}
+
+/**
+ * Converts multi-door frontend data to backend format with proper coordinate offsets.
+ * Each door's products get X offsets based on door position.
+ * 
+ * @param refrigerators - Multi-door refrigerator data { 'door-1': {...}, 'door-2': {...} }
+ * @param doorConfigs - Array of door configurations with dimensions
+ * @param headerHeight - Header height in pixels (default: 100px)
+ * @param grilleHeight - Grille height in pixels (default: 90px)
+ * @param frameBorder - Frame border width in pixels (default: 16px)
+ * @returns BackendOutput with all doors' products in absolute coordinates
+ */
+export function convertMultiDoorFrontendToBackend(
+  refrigerators: MultiDoorRefrigerator,
+  doorConfigs: DoorConfig[],
+  headerHeight: number = 100,
+  grilleHeight: number = 90,
+  frameBorder: number = 16
+): BackendOutput {
+  
+  // Calculate total dimensions
+  const totalWidth = doorConfigs.reduce((sum, door) => sum + door.width, 0) + (frameBorder * (doorConfigs.length + 1));
+  const totalHeight = doorConfigs[0].height + headerHeight + grilleHeight + (frameBorder * 2);
+  
+  // Initialize backend structure
+  const backendOutput: BackendOutput = {
+    Cooler: {
+      "Door-1": {
+        data: [],
+        Sections: [],
+        "Door-Visible": true,
+      },
+    },
+    dimensions: {
+      width: totalWidth,
+      height: totalHeight,
+      BoundingBoxScale: PIXEL_RATIO
+    },
+  };
+
+  // Process each door
+  doorConfigs.forEach((doorConfig, doorIndex) => {
+    const doorId = doorConfig.id;
+    const doorData = refrigerators[doorId];
+    
+    if (!doorData) return;
+
+    // Calculate X offset for this door's products
+    const doorXOffset = getDoorXOffset(doorConfigs, doorIndex);
+    
+    // Calculate row positions for this door
+    const rowMetadata = calculateRowPositions(doorData);
+    const rowKeys = Object.keys(doorData).sort();
+    
+    rowKeys.forEach((rowKey, rowIndex) => {
+      const currentRow: Row = doorData[rowKey];
+      const rowMeta = rowMetadata[rowIndex];
+        // Create section for this row
+      const newSection: BackendSection = {
+        data: generateSectionPolygon(rowMeta.yStart, rowMeta.yEnd, doorConfig.width),
+        position: rowIndex + 1 + (doorIndex * 100), // Offset position by door
+        products: [],
+      };
+
+      // Calculate X positions for stacks (relative to door)
+      const stackXPositions = calculateStackPositions(currentRow);
+
+      // Process each stack
+      currentRow.stacks.forEach((stackArray: Item[], stackIndex) => {
+        if (stackArray.length === 0) return;
+
+        const frontProductFE: Item = stackArray[0];
+        const stackedProductsFE: Item[] = stackArray.slice(1);
+        
+        // Apply door offset to X position
+        const xPosition = stackXPositions[stackIndex] + doorXOffset;
+        
+        let cumulativeHeight = 0;
+
+        // Process stacked items
+        const backendStackedProducts: BackendProduct[] = stackedProductsFE.map((feProduct: Item): BackendProduct | null => {
+          const boundingBox = generateBoundingBox(
+            feProduct,
+            xPosition, // Already includes door offset
+            rowMeta.yStart,
+            cumulativeHeight,
+            rowMeta.maxHeight,
+            0,           // No additional frame offset (already in doorXOffset)
+            headerHeight
+          );
+          
+          cumulativeHeight += feProduct.height;
+          
+          return {
+            product: feProduct.name,
+            stacked: null,
+            Position: `${doorId}-${feProduct.id}`,
+            "SKU-Code": feProduct.skuId,
+            stackSize: 0,
+            Confidence: "1.0",
+            "Bounding-Box": boundingBox,
+            width: feProduct.width,
+            height: feProduct.height,
+          };
+        }).filter((p): p is BackendProduct => p !== null);
+
+        // Front product
+        const frontBoundingBox = generateBoundingBox(
+          frontProductFE,
+          xPosition,
+          rowMeta.yStart,
+          cumulativeHeight,
+          rowMeta.maxHeight,
+          0,           // No additional frame offset
+          headerHeight
+        );
+
+        const backendFrontProduct: BackendProduct = {
+          product: frontProductFE.name,
+          stacked: backendStackedProducts.length > 0 ? backendStackedProducts : null,
+          Position: `${doorId}-${stackIndex + 1}`,
+          "SKU-Code": frontProductFE.skuId,
+          stackSize: stackArray.filter(p => p.skuId).length - 1,
+          Confidence: "1.0",
+          "Bounding-Box": frontBoundingBox,
+          width: frontProductFE.width,
+          height: frontProductFE.height,
+        };
+
+        newSection.products.push(backendFrontProduct);
+      });
+
+      backendOutput.Cooler["Door-1"].Sections.push(newSection);
+    });
   });
 
   return backendOutput;

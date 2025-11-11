@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { convertFrontendToBackend, BackendProduct } from '@/lib/backend-transform';
+import { convertFrontendToBackend, convertMultiDoorFrontendToBackend, BackendProduct } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
+import { getDoorConfigs } from '@/lib/multi-door-utils';
 
 interface BoundingBoxOverlayProps {
   isVisible: boolean;
@@ -15,13 +16,17 @@ interface BoundingBoxOverlayProps {
 
 export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, grilleHeight, contentYOffset }: BoundingBoxOverlayProps) {
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
+  const refrigerators = usePlanogramStore((state) => state.refrigerators);
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const [showInfoPanel, setShowInfoPanel] = useState(true); // NEW: State for info panel visibility
 
   // Get refrigerator dimensions
   const dimensions = useMemo(() => {
     const layout = availableLayoutsData[selectedLayoutId];
     if (layout) {
-      return { width: layout.width, height: layout.height };
+      const width = layout.width || (layout.doors?.[0]?.width ?? 600);
+      const height = layout.height || (layout.doors?.[0]?.height ?? 800);
+      return { width, height };
     }
     return { width: 600, height: 800 };
   }, [selectedLayoutId]);
@@ -29,14 +34,31 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
   // Generate backend data with bounding boxes and extract products
   // Backend uses ABSOLUTE coordinates (includes frame border + header offset)
   const { products, sections } = useMemo(() => {
-    const backendData = convertFrontendToBackend(
-      refrigerator, 
-      dimensions.width, 
-      dimensions.height,
-      headerHeight,  // Used to calculate absolute Y offset
-      grilleHeight,  // Stored in dimensions
-      16 // frameBorder - Used to calculate absolute X and Y offset
-    );
+    const layoutData = availableLayoutsData[selectedLayoutId];
+    let backendData;
+    
+    if (isMultiDoor) {
+      // Multi-door mode
+      const doorConfigs = getDoorConfigs(layoutData);
+      backendData = convertMultiDoorFrontendToBackend(
+        refrigerators,
+        doorConfigs,
+        headerHeight,
+        grilleHeight,
+        16 // frameBorder
+      );
+    } else {
+      // Single-door mode
+      backendData = convertFrontendToBackend(
+        refrigerator, 
+        dimensions.width, 
+        dimensions.height,
+        headerHeight,
+        grilleHeight,
+        16 // frameBorder
+      );
+    }
+    
     const allProducts: BackendProduct[] = [];
     const allSections: Array<{ id: string; polygon: number[][] }> = [];
 
@@ -56,7 +78,7 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
       });
     }
     return { products: allProducts, sections: allSections };
-  }, [refrigerator, dimensions, headerHeight, grilleHeight]);
+  }, [refrigerator, refrigerators, isMultiDoor, dimensions, headerHeight, grilleHeight, selectedLayoutId]);
 
   if (!isVisible) return null;
 

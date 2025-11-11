@@ -1,4 +1,4 @@
-import { Item, Refrigerator, Sku } from './types';
+import { Item, Refrigerator, Sku, MultiDoorRefrigerator } from './types';
 import { DragValidation } from '@/app/planogram/components/planogramEditor';
 
 // This payload contains all the necessary information to run our validation checks.
@@ -43,6 +43,43 @@ export function findConflicts(refrigerator: Refrigerator): string[] {
   return conflictIds;
 }
 
+/**
+ * Finds conflicts across all doors in a multi-door refrigerator.
+ * @param refrigerators Multi-door refrigerator data
+ * @returns An array of item IDs that are in conflict with the rules.
+ */
+export function findMultiDoorConflicts(refrigerators: MultiDoorRefrigerator): string[] {
+  const conflictIds: string[] = [];
+
+  // Iterate through each door
+  for (const doorId in refrigerators) {
+    const door = refrigerators[doorId];
+    
+    // Use the existing findConflicts logic for each door
+    const doorConflicts = findConflicts(door);
+    conflictIds.push(...doorConflicts);
+  }
+
+  return conflictIds;
+}
+
+/**
+ * Finds conflicts in either single-door or multi-door mode.
+ * @param refrigerator Single-door refrigerator data
+ * @param refrigerators Multi-door refrigerator data
+ * @param isMultiDoor Whether in multi-door mode
+ * @returns An array of item IDs that are in conflict with the rules.
+ */
+export function findAllConflicts(
+  refrigerator: Refrigerator,
+  refrigerators: MultiDoorRefrigerator,
+  isMultiDoor: boolean
+): string[] {
+  if (isMultiDoor) {
+    return findMultiDoorConflicts(refrigerators);
+  }
+  return findConflicts(refrigerator);
+}
 
 /**
  * A centralized function to run all business logic checks when a drag starts.

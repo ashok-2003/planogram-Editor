@@ -4,8 +4,9 @@ import { useMemo, useState, memo } from 'react';
 import { toast } from 'sonner';
 
 export const FrontendStatePreview = memo(function FrontendStatePreview() {
-  // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
+  // OPTIMIZATION: Subscribe to both historyIndex AND currentLayoutId to detect state changes
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
+  const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
   const [copied, setCopied] = useState(false);
   
   // Get the raw frontend state from the store
@@ -13,11 +14,13 @@ export const FrontendStatePreview = memo(function FrontendStatePreview() {
     const state = usePlanogramStore.getState();
     return {
       refrigerator: state.refrigerator,
+      refrigerators: state.refrigerators,
+      isMultiDoor: state.isMultiDoor,
       currentLayoutId: state.currentLayoutId,
       historyIndex: state.historyIndex,
       historyLength: state.history.length,
     };
-  }, [historyIndex]);
+  }, [historyIndex, currentLayoutId]);
 
   // Format the frontend state as JSON
   const formattedState = JSON.stringify(frontendState, null, 2);

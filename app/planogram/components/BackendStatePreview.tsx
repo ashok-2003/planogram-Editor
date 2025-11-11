@@ -2,31 +2,33 @@
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState, memo, useEffect, useCallback, useRef } from 'react';
 import { Refrigerator } from '@/lib/types';
-import { convertFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backend-transform';
+import { convertFrontendToBackend, convertMultiDoorFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
+import { getDoorConfigs } from '@/lib/multi-door-utils';
 import { toast } from 'sonner';
 import { PIXEL_RATIO } from '@/lib/config';
 import { getElementDimensions } from '@/lib/capture-utils';
 
 export const BackendStatePreview = memo(function BackendStatePreview() {
-  // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
-  // This prevents re-renders during drag operations (which don't change history)
+  // OPTIMIZATION: Subscribe to both historyIndex AND currentLayoutId to detect state changes
+  // This prevents re-renders during drag operations but updates when layout switches
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
+  const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
   const [copied, setCopied] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const [backendData, setBackendData] = useState<any>(null);
   const [formattedState, setFormattedState] = useState<string>('');
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // CRITICAL FIX: Get data within useMemo to avoid re-renders during drag
-  // We only recalculate when historyIndex changes (actual commits)
-  const { refrigerator, currentLayoutId } = useMemo(() => {
+    // CRITICAL FIX: Get data within useMemo to avoid re-renders during drag
+  // We recalculate when historyIndex OR currentLayoutId changes
+  const { refrigerator, refrigerators, isMultiDoor } = useMemo(() => {
     const state = usePlanogramStore.getState();
     return {
       refrigerator: state.refrigerator,
-      currentLayoutId: state.currentLayoutId
+      refrigerators: state.refrigerators,
+      isMultiDoor: state.isMultiDoor
     };
-  }, [historyIndex]);
+  }, [historyIndex, currentLayoutId]);
 
   // --- LAZY CALCULATION: Only calculate when component is visible and data changes ---
   // Uses requestIdleCallback to avoid blocking main thread
@@ -98,17 +100,31 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
             console.warn('⚠️ Failed to measure element, using layout dimensions:', error);
             // contentWidth and contentHeight already set to fallback values above
           }
-          
-          // Pass refrigerator state and dimensions to converter
+            // Pass refrigerator state and dimensions to converter
           // The converter will ADD header, grille, and frame to create total dimensions
-          const unscaledData = convertFrontendToBackend(
-            refrigerator as Refrigerator,
-            contentWidth,
-            contentHeight,
-            HEADER_HEIGHT,
-            GRILLE_HEIGHT,
-            FRAME_BORDER
-          );
+          let unscaledData;
+          
+          if (isMultiDoor) {
+            // Multi-door mode: use convertMultiDoorFrontendToBackend
+            const doorConfigs = getDoorConfigs(layoutData);
+            unscaledData = convertMultiDoorFrontendToBackend(
+              refrigerators,
+              doorConfigs,
+              HEADER_HEIGHT,
+              GRILLE_HEIGHT,
+              FRAME_BORDER
+            );
+          } else {
+            // Single-door mode: use original converter
+            unscaledData = convertFrontendToBackend(
+              refrigerator as Refrigerator,
+              contentWidth,
+              contentHeight,
+              HEADER_HEIGHT,
+              GRILLE_HEIGHT,
+              FRAME_BORDER
+            );
+          }
           
           // CRITICAL: Apply the pixel ratio scaling to match BoundingBoxScale
           // This scales all bounding boxes by PIXEL_RATIO (e.g., 3x)
@@ -133,7 +149,7 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
         clearTimeout(calculationTimeoutRef.current);
       }
     };
-  }, [refrigerator, currentLayoutId]);
+  }, [refrigerator, refrigerators, isMultiDoor, currentLayoutId]);
   const handleCopy = useCallback(async () => {
     if (!formattedState || isCalculating) {
       toast.error('Please wait for calculation to complete');

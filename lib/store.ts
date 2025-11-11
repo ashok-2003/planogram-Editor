@@ -1,16 +1,25 @@
 import { create } from 'zustand';
-import { Refrigerator, Item, Sku } from './types';
+import { Refrigerator, Item, Sku, MultiDoorRefrigerator } from './types';
 import { arrayMove } from '@dnd-kit/sortable';
 import { produce } from 'immer';
 import { PIXELS_PER_MM } from './config';
 import { toast } from 'sonner';
 
-type StackLocation = { rowId: string; stackIndex: number; itemIndex: number; };
+type StackLocation = { doorId?: string; rowId: string; stackIndex: number; itemIndex: number; };
 
 interface PlanogramState {
+  // NEW: Support for multi-door refrigerators
+  isMultiDoor: boolean;
+  refrigerators: MultiDoorRefrigerator; // e.g., { 'door-1': {...}, 'door-2': {...} }
+  
+  // OLD: Keep for backward compatibility (will be populated from refrigerators['door-1'] if single door)
   refrigerator: Refrigerator;
+  
   selectedItemId: string | null;
-  history: Refrigerator[];
+  
+  // History: Use union type to support both single and multi-door modes
+  // Will be normalized to MultiDoorRefrigerator format internally
+  history: (Refrigerator | MultiDoorRefrigerator)[];
   historyIndex: number;
   
   // Persistence state
@@ -25,25 +34,27 @@ interface PlanogramState {
   syncStatus: 'idle' | 'syncing' | 'synced';
   lastSynced: Date | null;
     findStackLocation: (itemIdOrStackId: string) => StackLocation | null;  actions: {
-    selectItem: (itemId: string | null) => void;
+    // Multi-door helper functions (internal use)
+    _getRefrigeratorData: (doorId?: string) => Refrigerator;
+    _updateRefrigeratorData: (newData: Refrigerator, doorId?: string) => void;
+      selectItem: (itemId: string | null) => void;
     deleteSelectedItem: () => void;
     removeItemsById: (itemIds: string[]) => void;
     duplicateAndAddNew: () => void;
     duplicateAndStack: () => void;
     replaceSelectedItem: (newSku: Sku, isRulesEnabled?: boolean) => void;
-    moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number) => void;
-    addItemFromSku: (sku: Sku, targetRowId: string, targetStackIndex?: number) => void;
-    reorderStack: (rowId: string, oldIndex: number, newIndex: number) => void;
+    moveItem: (itemId: string, targetRowId: string, targetStackIndex?: number, targetDoorId?: string) => void;
+    addItemFromSku: (sku: Sku, targetRowId: string, targetStackIndex?: number, doorId?: string) => void;
+    reorderStack: (rowId: string, oldIndex: number, newIndex: number, doorId?: string) => void;
     stackItem: (draggedStackId: string, targetStackId: string) => void;
     undo: () => void;
     redo: () => void;
     
     // NEW: Update blank space width
     updateBlankWidth: (itemId: string, newWidthMM: number) => void;
-    
-    // Persistence actions
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator) => void;
-    switchLayout: (layoutId: string, newLayout: Refrigerator) => void;
+      // Persistence actions
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator, layoutData?: any) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => void;
     restoreDraft: () => void;
     dismissDraft: () => void;
     clearDraft: () => void;
@@ -75,8 +86,8 @@ const DRAFT_EXPIRY_DAYS = 2;
 const getStorageKey = (layoutId: string) => `planogram-draft-${layoutId}`;
 
 interface StoredDraft {
-  refrigerator: Refrigerator;
-  history: Refrigerator[];
+  refrigerator: Refrigerator | MultiDoorRefrigerator;
+  history: (Refrigerator | MultiDoorRefrigerator)[];
   historyIndex: number;
   layoutId: string;
   timestamp: string;
@@ -84,8 +95,8 @@ interface StoredDraft {
 
 // Save full state to localStorage
 const saveToLocalStorage = (
-  refrigerator: Refrigerator,
-  history: Refrigerator[],
+  refrigerator: Refrigerator | MultiDoorRefrigerator,
+  history: (Refrigerator | MultiDoorRefrigerator)[],
   historyIndex: number,
   layoutId: string
 ): void => {
@@ -144,8 +155,8 @@ const clearLocalStorage = (layoutId: string): void => {
 // Debounced auto-save (1 second delay)
 let saveTimeout: NodeJS.Timeout | null = null;
 const debouncedPersist = (
-  refrigerator: Refrigerator,
-  history: Refrigerator[],
+  refrigerator: Refrigerator | MultiDoorRefrigerator,
+  history: (Refrigerator | MultiDoorRefrigerator)[],
   historyIndex: number,
   layoutId: string
 ): void => {
@@ -161,7 +172,7 @@ const debouncedPersist = (
 // ============================================================================
 
 // Helper function to save state to history BEFORE making changes
-const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], historyIndex: number): { history: Refrigerator[]; historyIndex: number } => {
+const saveToHistory = (currentState: Refrigerator | MultiDoorRefrigerator, history: (Refrigerator | MultiDoorRefrigerator)[], historyIndex: number): { history: (Refrigerator | MultiDoorRefrigerator)[]; historyIndex: number } => {
   // If this is the very first change and history is empty, save the initial state
   if (history.length === 0) {
     const newHistory = [produce(currentState, () => {})];
@@ -180,7 +191,7 @@ const saveToHistory = (currentState: Refrigerator, history: Refrigerator[], hist
 };
 
 // Helper function to push new state after modification
-const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyIndex: number, currentLayoutId: string | null): { history: Refrigerator[]; historyIndex: number } => {
+const pushToHistory = (newState: Refrigerator | MultiDoorRefrigerator, history: (Refrigerator | MultiDoorRefrigerator)[], historyIndex: number, currentLayoutId: string | null): { history: (Refrigerator | MultiDoorRefrigerator)[]; historyIndex: number } => {
   // Remove any future history if we're not at the end
   const newHistory = history.slice(0, historyIndex + 1);  // Add the new state (Immer produces immutable draft, so we can add directly)
   newHistory.push(produce(newState, () => {}));
@@ -189,7 +200,7 @@ const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyI
   
   // Auto-save to localStorage with debounce (Phase 8)
   if (currentLayoutId) {
-    debouncedPersist(newState, limitedHistory, limitedHistory.length - 1, currentLayoutId);
+    debouncedPersist(newState as any, limitedHistory as any, limitedHistory.length - 1, currentLayoutId);
   }
   
   return {
@@ -199,6 +210,8 @@ const pushToHistory = (newState: Refrigerator, history: Refrigerator[], historyI
 };
 
 export const usePlanogramStore = create<PlanogramState>((set, get) => ({
+  isMultiDoor: false,
+  refrigerators: {},
   refrigerator: {},
   selectedItemId: null,
   history: [],
@@ -211,24 +224,94 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   syncStatus: 'idle',
   lastSynced: null,
     findStackLocation: (itemIdOrStackId: string) => {
-    const { refrigerator } = get();
-    for (const rowId in refrigerator) {
-      for (let stackIndex = 0; stackIndex < refrigerator[rowId].stacks.length; stackIndex++) {
-        const stack = refrigerator[rowId].stacks[stackIndex];
-        // Check if it's a stack ID (first item) or find item in stack
-        if (stack[0]?.id === itemIdOrStackId) {
-          return { rowId, stackIndex, itemIndex: 0 };
+    const { isMultiDoor, refrigerators, refrigerator } = get();
+    
+    // Multi-door mode: search across all doors
+    if (isMultiDoor) {
+      for (const doorId in refrigerators) {
+        const door = refrigerators[doorId];
+        for (const rowId in door) {
+          for (let stackIndex = 0; stackIndex < door[rowId].stacks.length; stackIndex++) {
+            const stack = door[rowId].stacks[stackIndex];
+            // Check if it's a stack ID (first item) or find item in stack
+            if (stack[0]?.id === itemIdOrStackId) {
+              return { doorId, rowId, stackIndex, itemIndex: 0 };
+            }
+            // Find item in stack
+            const itemIndex = stack.findIndex(i => i.id === itemIdOrStackId);
+            if (itemIndex !== -1) {
+              return { doorId, rowId, stackIndex, itemIndex };
+            }
+          }
         }
-        // Find item in stack
-        const itemIndex = stack.findIndex(i => i.id === itemIdOrStackId);
-        if (itemIndex !== -1) {
-          return { rowId, stackIndex, itemIndex };
+      }
+    } else {
+      // Single-door mode: use legacy refrigerator
+      for (const rowId in refrigerator) {
+        for (let stackIndex = 0; stackIndex < refrigerator[rowId].stacks.length; stackIndex++) {
+          const stack = refrigerator[rowId].stacks[stackIndex];
+          // Check if it's a stack ID (first item) or find item in stack
+          if (stack[0]?.id === itemIdOrStackId) {
+            return { rowId, stackIndex, itemIndex: 0 };
+          }
+          // Find item in stack
+          const itemIndex = stack.findIndex(i => i.id === itemIdOrStackId);
+          if (itemIndex !== -1) {
+            return { rowId, stackIndex, itemIndex };
+          }
         }
       }
     }
     return null;
   },
   actions: {
+    // ========================================
+    // MULTI-DOOR HELPER FUNCTIONS
+    // ========================================
+    
+    /**
+     * Get the refrigerator data for a specific door (multi-door aware)
+     * Returns the appropriate refrigerator based on doorId and mode
+     */
+    _getRefrigeratorData: (doorId?: string): Refrigerator => {
+      const state = get();
+      if (state.isMultiDoor && doorId) {
+        return state.refrigerators[doorId] || {};
+      }
+      return state.refrigerator;
+    },
+    
+    /**
+     * Update refrigerator data (multi-door aware)
+     * Updates both refrigerator and refrigerators based on mode
+     */    _updateRefrigeratorData: (newData: Refrigerator, doorId?: string) => {
+      const state = get();
+      if (state.isMultiDoor && doorId) {
+        // Update specific door in refrigerators
+        const newRefrigerators = produce(state.refrigerators, draft => {
+          draft[doorId] = newData;
+        });
+        const historyUpdate = pushToHistory(newRefrigerators, state.history, state.historyIndex, state.currentLayoutId);
+        
+        // CRITICAL FIX: Always keep refrigerator synced with door-1 for backward compatibility
+        const updatedRefrigerator = doorId === 'door-1' ? newData : (newRefrigerators['door-1'] || state.refrigerator);
+        
+        set({
+          refrigerators: newRefrigerators,
+          refrigerator: updatedRefrigerator,
+          ...historyUpdate
+        });
+      } else {
+        // Single-door mode: update refrigerator
+        const historyUpdate = pushToHistory(newData, state.history, state.historyIndex, state.currentLayoutId);
+        set({
+          refrigerator: newData,
+          refrigerators: { 'door-1': newData },
+          ...historyUpdate
+        });
+      }
+    },
+    
     selectItem: (itemId) => set({ selectedItemId: itemId }),
     deleteSelectedItem: () => {
         const { selectedItemId, actions } = get();
@@ -236,30 +319,50 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         actions.removeItemsById([selectedItemId]);
     },    removeItemsById: (itemIds) => {
       set(state => {
-        let itemsRemoved = false;
+        const { findStackLocation, actions } = get();
         
-        const newFridge = produce(state.refrigerator, draft => {
-          for (const rowId in draft) {
-            // Filter out empty stacks that result from removing items
-            draft[rowId].stacks = draft[rowId].stacks
-              .map((stack: Item[]) => {
-                // Filter out the items to be removed from this stack
-                return stack.filter(item => {
-                  const shouldRemove = itemIds.includes(item.id);
-                  if (shouldRemove) itemsRemoved = true;
-                  return !shouldRemove;
-                });
-              })
-              // After filtering items, filter out any stacks that are now empty
-              .filter((stack: Item[]) => stack.length > 0);
+        // Find which door(s) contain these items
+        const doorsToUpdate = new Set<string>();
+        for (const itemId of itemIds) {
+          const location = findStackLocation(itemId);
+          if (location) {
+            doorsToUpdate.add(location.doorId || 'door-1');
           }
-        });        if (itemsRemoved) {
-          const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-          return { refrigerator: newFridge, selectedItemId: null, ...historyUpdate };
+        }
+        
+        // Update each affected door
+        let itemsRemoved = false;
+        for (const doorId of doorsToUpdate) {
+          const currentFridge = actions._getRefrigeratorData(doorId);
+          
+          const newFridge = produce(currentFridge, draft => {
+            for (const rowId in draft) {
+              // Filter out empty stacks that result from removing items
+              draft[rowId].stacks = draft[rowId].stacks
+                .map((stack: Item[]) => {
+                  // Filter out the items to be removed from this stack
+                  return stack.filter(item => {
+                    const shouldRemove = itemIds.includes(item.id);
+                    if (shouldRemove) itemsRemoved = true;
+                    return !shouldRemove;
+                  });
+                })
+                // After filtering items, filter out any stacks that are now empty
+                .filter((stack: Item[]) => stack.length > 0);
+            }
+          });
+          
+          if (itemsRemoved) {
+            actions._updateRefrigeratorData(newFridge, doorId);
+          }
+        }
+        
+        if (itemsRemoved) {
+          return { selectedItemId: null };
         }
         return state; // No changes
       });
-    },    duplicateAndAddNew: () => {
+    },duplicateAndAddNew: () => {
         const { selectedItemId, findStackLocation } = get();
         if (!selectedItemId) return;
         
@@ -355,10 +458,23 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         });        toast.success('Item replaced successfully!');
         const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
         return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
-      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1) => {
+      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
+        const { findStackLocation, actions } = get();
+        
+        // Use provided doorId, or try to find it, or default to door-1
+        const finalDoorId = doorId || findStackLocation(targetRowId)?.doorId || 'door-1';
+        
+        console.log('🔧 addItemFromSku called:', { sku: sku.skuId, targetRowId, targetStackIndex, doorId, finalDoorId });
+        
         set(state => {
-            const targetRow = state.refrigerator[targetRowId];
-            if(!targetRow) return state;
+            const currentFridge = actions._getRefrigeratorData(finalDoorId);
+            console.log('📦 Current fridge data:', { doorId: finalDoorId, hasRow: !!currentFridge[targetRowId], rowKeys: Object.keys(currentFridge) });
+            
+            const targetRow = currentFridge[targetRowId];
+            if(!targetRow) {
+              console.log('❌ Target row not found!', { targetRowId, availableRows: Object.keys(currentFridge) });
+              return state;
+            }
             
             // NEW: For BLANK spaces, set height to match row's maxHeight
             const newItem: Item = { 
@@ -369,60 +485,112 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
               heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
               widthMM: sku.widthMM,
               customWidth: sku.productType === 'BLANK' ? sku.width : undefined
-            };
-            
-            const newFridge = produce(state.refrigerator, draft => {
+            };              const newFridge = produce(currentFridge, draft => {
               if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
                 draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);              } else {
                 draft[targetRowId].stacks.push([newItem]);
               }
             });
             
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-            return { refrigerator: newFridge, ...historyUpdate };
+            console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: newFridge[targetRowId].stacks.length });
+            actions._updateRefrigeratorData(newFridge, finalDoorId);
+            return state;
         });
-    },moveItem: (itemId, targetRowId, targetStackIndex) => {
+    },moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
         set(state => {
-            const { findStackLocation } = get();
+            const { findStackLocation, actions, isMultiDoor } = get();
             const location = findStackLocation(itemId);
             if (!location) return state;
 
-            const draggedStack = state.refrigerator[location.rowId].stacks[location.stackIndex];
+            const sourceDoorId = location.doorId || 'door-1';
+            const finalTargetDoorId = targetDoorId || sourceDoorId;
             
-            const newFridge = produce(state.refrigerator, draft => {
-              draft[location.rowId].stacks.splice(location.stackIndex, 1);
+            // Check if it's a cross-door move
+            const isCrossDoorMove = isMultiDoor && sourceDoorId !== finalTargetDoorId;
+            
+            if (isCrossDoorMove) {
+              // Cross-door move: remove from source, add to target
+              const sourceFridge = actions._getRefrigeratorData(sourceDoorId);
+              const targetFridge = actions._getRefrigeratorData(finalTargetDoorId);
+              const draggedStack = sourceFridge[location.rowId].stacks[location.stackIndex];
               
-              const targetRow = draft[targetRowId];
-              if (targetStackIndex !== undefined) {
-                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);              } else {
+              // Update source door
+              const newSourceFridge = produce(sourceFridge, draft => {
+                draft[location.rowId].stacks.splice(location.stackIndex, 1);
+              });
+              
+              // Update target door
+              const newTargetFridge = produce(targetFridge, draft => {
+                const targetRow = draft[targetRowId];
+                if (targetStackIndex !== undefined) {
+                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+                } else {
                   targetRow.stacks.push(draggedStack);
-              }
-            });
+                }
+              });
+              
+              // Update both doors
+              actions._updateRefrigeratorData(newSourceFridge, sourceDoorId);
+              actions._updateRefrigeratorData(newTargetFridge, finalTargetDoorId);
+              
+            } else {
+              // Same-door move
+              const currentFridge = actions._getRefrigeratorData(sourceDoorId);
+              const draggedStack = currentFridge[location.rowId].stacks[location.stackIndex];
+                const newFridge = produce(currentFridge, draft => {
+                draft[location.rowId].stacks.splice(location.stackIndex, 1);
+                
+                const targetRow = draft[targetRowId];
+                if (targetStackIndex !== undefined) {
+                    targetRow.stacks.splice(targetStackIndex, 0, draggedStack);              } else {
+                    targetRow.stacks.push(draggedStack);
+                }
+              });
 
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-            return { refrigerator: newFridge, ...historyUpdate };
+              actions._updateRefrigeratorData(newFridge, sourceDoorId);
+            }
+            return state;
         });
-    },    reorderStack: (rowId, oldIndex, newIndex) => {
+    },    reorderStack: (rowId, oldIndex, newIndex, doorId?: string) => {
         set(state => {
-            const newFridge = produce(state.refrigerator, draft => {
+            const { actions } = get();
+            
+            // Use provided doorId or try to find it
+            const finalDoorId = doorId || (state.isMultiDoor 
+              ? Object.keys(state.refrigerators).find(dId => 
+                  state.refrigerators[dId][rowId]?.stacks?.[oldIndex]?.[0]?.id
+                )
+              : undefined) || 'door-1';
+              const currentFridge = actions._getRefrigeratorData(finalDoorId);
+            const newFridge = produce(currentFridge, draft => {
               draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
             });
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-            return { refrigerator: newFridge, ...historyUpdate };
+            
+            actions._updateRefrigeratorData(newFridge, finalDoorId);
+            return state;
         });
     },    stackItem: (draggedStackId, targetStackId) => {
         set(state => {
-            const { findStackLocation } = get();
+            const { findStackLocation, actions } = get();
             const draggedLocation = findStackLocation(draggedStackId);
             const targetLocation = findStackLocation(targetStackId);
 
             if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
                 return state;
             }
-              const row = state.refrigerator[draggedLocation.rowId];
+            
+            // Ensure both items are in the same door
+            if (draggedLocation.doorId !== targetLocation.doorId) {
+                toast.error('Cannot stack items across different doors');
+                return state;
+            }
+            
+            const doorId = draggedLocation.doorId || 'door-1';
+            const currentFridge = actions._getRefrigeratorData(doorId);
+            const row = currentFridge[draggedLocation.rowId];
             const draggedStack = row.stacks[draggedLocation.stackIndex];
             const itemToStack = draggedStack[0];
-              const newFridge = produce(state.refrigerator, draft => {
+              const newFridge = produce(currentFridge, draft => {
               // Add item to target stack
               draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
               
@@ -434,20 +602,33 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
               draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
             });
 
-            const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-            return { refrigerator: newFridge, ...historyUpdate };
+            actions._updateRefrigeratorData(newFridge, doorId);
+            return state;
         });
-    },    undo: () => {
+    },undo: () => {
       set(state => {
         if (state.historyIndex > 0) {
           const newIndex = state.historyIndex - 1;
           const previousState = state.history[newIndex];
           toast.success('Undo successful');
-          return {
-            refrigerator: produce(previousState, () => {}),
-            historyIndex: newIndex,
-            selectedItemId: null
-          };
+          
+          // Handle both single and multi-door history states
+          if (state.isMultiDoor) {
+            const previousMultiDoor = previousState as MultiDoorRefrigerator;
+            return {
+              refrigerators: produce(previousMultiDoor, () => {}),
+              refrigerator: produce(previousMultiDoor['door-1'] || {}, () => {}),
+              historyIndex: newIndex,
+              selectedItemId: null
+            };
+          } else {
+            return {
+              refrigerator: produce(previousState as Refrigerator, () => {}),
+              refrigerators: { 'door-1': produce(previousState as Refrigerator, () => {}) },
+              historyIndex: newIndex,
+              selectedItemId: null
+            };
+          }
         } else {
           toast.error('Nothing to undo');
           return state;
@@ -459,11 +640,24 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           const newIndex = state.historyIndex + 1;
           const nextState = state.history[newIndex];
           toast.success('Redo successful');
-          return {
-            refrigerator: produce(nextState, () => {}),
-            historyIndex: newIndex,
-            selectedItemId: null
-          };
+          
+          // Handle both single and multi-door history states
+          if (state.isMultiDoor) {
+            const nextMultiDoor = nextState as MultiDoorRefrigerator;
+            return {
+              refrigerators: produce(nextMultiDoor, () => {}),
+              refrigerator: produce(nextMultiDoor['door-1'] || {}, () => {}),
+              historyIndex: newIndex,
+              selectedItemId: null
+            };
+          } else {
+            return {
+              refrigerator: produce(nextState as Refrigerator, () => {}),
+              refrigerators: { 'door-1': produce(nextState as Refrigerator, () => {}) },
+              historyIndex: newIndex,
+              selectedItemId: null
+            };
+          }
         } else {
           toast.error('Nothing to redo');
           return state;        }
@@ -549,14 +743,25 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
     // ========================================
     // Persistence Actions
     // ========================================
-    
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator) => {
+      initializeLayout: (layoutId: string, initialLayout: Refrigerator, layoutData?: any) => {
       const draft = loadFromLocalStorage(layoutId);
       
-      if (draft) {
+      // Check if this is a multi-door layout
+      const isMultiDoor = layoutData?.doorCount && layoutData?.doorCount > 1;
+        if (draft) {
         // Draft exists - load it and show restore prompt
+        const draftRefrigerators = isMultiDoor 
+          ? (draft.refrigerator as MultiDoorRefrigerator) 
+          : { 'door-1': draft.refrigerator as Refrigerator };
+        
+        const draftRefrigerator = isMultiDoor
+          ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
+          : draft.refrigerator as Refrigerator;
+        
         set({
-          refrigerator: draft.refrigerator,
+          isMultiDoor: isMultiDoor,
+          refrigerators: draftRefrigerators,
+          refrigerator: draftRefrigerator,
           history: draft.history,
           historyIndex: draft.historyIndex,
           currentLayoutId: layoutId,
@@ -567,13 +772,25 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           },
           syncStatus: 'idle',
           selectedItemId: null
-        });
-        toast.success('Draft found! You can restore your previous work.', { duration: 4000 });
+        });        toast.success('Draft found! You can restore your previous work.', { duration: 4000 });
       } else {
         // No draft - use initial layout
+        const refrigerators = isMultiDoor 
+          ? layoutData.doors.reduce((acc: any, door: any) => {
+              acc[door.id] = door.layout;
+              return acc;
+            }, {})
+          : { 'door-1': initialLayout };
+        
+        // CRITICAL FIX: Store correct data in history based on mode
+        const historyData = isMultiDoor ? refrigerators : initialLayout;
+        const refrigeratorData = isMultiDoor ? (refrigerators['door-1'] || {}) : initialLayout;
+        
         set({
-          refrigerator: initialLayout,
-          history: [produce(initialLayout, () => {})],
+          isMultiDoor: isMultiDoor,
+          refrigerators: refrigerators,
+          refrigerator: refrigeratorData,
+          history: [JSON.parse(JSON.stringify(historyData))],
           historyIndex: 0,
           currentLayoutId: layoutId,
           hasPendingDraft: false,
@@ -581,28 +798,37 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           syncStatus: 'idle',
           selectedItemId: null        });
       }
-    },
-    
-    switchLayout: (layoutId: string, newLayout: Refrigerator) => {
+    },    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => {
       const state = get();
-      
-      // Save current layout first
-      if (state.currentLayoutId && state.refrigerator) {
+        // Save current layout first - CRITICAL FIX: Save correct data based on mode
+      if (state.currentLayoutId) {
+        // Save multi-door data if in multi-door mode, otherwise save single-door data
+        const dataToSave = state.isMultiDoor ? state.refrigerators : state.refrigerator;
         saveToLocalStorage(
-          state.refrigerator,
+          dataToSave,
           state.history,
           state.historyIndex,
           state.currentLayoutId
         );
       }
       
-      // Load new layout
+      // Check if this is a multi-door layout
+      const isMultiDoor = layoutData?.doorCount && layoutData?.doorCount > 1;
+        // Load new layout
       const draft = loadFromLocalStorage(layoutId);
-      
-      if (draft) {
+        if (draft) {
         // Draft exists for new layout
+        const draftRefrigerators = isMultiDoor 
+          ? (draft.refrigerator as MultiDoorRefrigerator) 
+          : { 'door-1': draft.refrigerator as Refrigerator };
+          const draftRefrigerator = isMultiDoor
+          ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
+          : draft.refrigerator as Refrigerator;
+        
         set({
-          refrigerator: draft.refrigerator,
+          isMultiDoor: isMultiDoor,
+          refrigerators: draftRefrigerators,
+          refrigerator: draftRefrigerator,
           history: draft.history,
           historyIndex: draft.historyIndex,
           currentLayoutId: layoutId,
@@ -612,13 +838,25 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             timestamp: draft.timestamp
           },
           selectedItemId: null
-        });
-        toast.success('Draft found for this layout!', { duration: 3000 });
+        });        toast.success('Draft found for this layout!', { duration: 3000 });
       } else {
         // No draft - use initial layout
+        const refrigerators = isMultiDoor 
+          ? layoutData.doors.reduce((acc: any, door: any) => {
+              acc[door.id] = door.layout;
+              return acc;
+            }, {})
+          : { 'door-1': newLayout };
+        
+        // CRITICAL FIX: Store correct data in history based on mode
+        const historyData = isMultiDoor ? refrigerators : newLayout;
+        const refrigeratorData = isMultiDoor ? (refrigerators['door-1'] || {}) : newLayout;
+        
         set({
-          refrigerator: newLayout,
-          history: [produce(newLayout, () => {})],
+          isMultiDoor: isMultiDoor,
+          refrigerators: refrigerators,
+          refrigerator: refrigeratorData,
+          history: [JSON.parse(JSON.stringify(historyData))],
           historyIndex: 0,
           currentLayoutId: layoutId,
           hasPendingDraft: false,
@@ -641,10 +879,19 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         toast.error('No draft found to restore');
         return;
       }
+        // Restore the draft data
+      const isMultiDoor = state.isMultiDoor;
+      const draftRefrigerators = isMultiDoor 
+        ? (draft.refrigerator as MultiDoorRefrigerator) 
+        : { 'door-1': draft.refrigerator as Refrigerator };
       
-      // Restore the draft data
+      const draftRefrigerator = isMultiDoor
+        ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
+        : draft.refrigerator as Refrigerator;
+      
       set({
-        refrigerator: draft.refrigerator,
+        refrigerators: draftRefrigerators,
+        refrigerator: draftRefrigerator,
         history: draft.history,
         historyIndex: draft.historyIndex,
         hasPendingDraft: false,
