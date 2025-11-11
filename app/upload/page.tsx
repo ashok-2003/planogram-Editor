@@ -91,30 +91,46 @@ function LayoutPicker({
     layouts,
     onSelectLayout,
     onCancel,
+    isNoMatch = false,
+    detectedShelfCount,
 }: {
     layouts: Array<{ id: string; layout: LayoutData }>;
     onSelectLayout: (layout: LayoutData, layoutId: string) => void;
     onCancel: () => void;
+    isNoMatch?: boolean;
+    detectedShelfCount?: number;
 }) {
     return (
         <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Multiple Layouts Found</DialogTitle>
+                    <DialogTitle>
+                        {isNoMatch ? '⚠️ No Matching Cooler Configuration' : 'Multiple Layouts Found'}
+                    </DialogTitle>
                     <DialogDescription>
-                        We found {layouts.length} layouts with the same number of shelves. Please choose the one that best matches your image.
+                        {isNoMatch ? (
+                            <>
+                                Your image has <strong>{detectedShelfCount} shelves</strong>, but we don't have a cooler configuration that matches. 
+                                Please choose a cooler model to continue. The AI-detected products will be placed accordingly.
+                            </>
+                        ) : (
+                            `We found ${layouts.length} layouts with the same number of shelves. Please choose the one that best matches your image.`
+                        )}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-4 max-h-60 overflow-y-auto">
                     {layouts.map(({ id, layout }) => (
                         <Button
                             key={id}
-                            variant="outline"
+                            variant={isNoMatch && id === 'g-26c' ? 'default' : 'outline'}
                             className="w-full justify-start h-auto"
                             onClick={() => onSelectLayout(layout, id)}
                         >
                             <div className="text-left">
-                                <p className="font-semibold">{layout.name}</p>
+                                <p className="font-semibold">
+                                    {layout.name}
+                                    {isNoMatch && id === 'g-26c' && ' (Recommended)'}
+                                </p>
                                 <p className="text-xs text-gray-500">
                                     {Object.keys(layout.layout).length} Shelves | {layout.width}px wide
                                 </p>
@@ -137,7 +153,9 @@ export default function UploadPlanogramPage() {
     // --- NEW STATE for layout picking ---
     const [aiData, setAiData] = useState<AIBackendData | null>(null);
     const [matchingLayouts, setMatchingLayouts] = useState<Array<{ id: string; layout: LayoutData }>>([]);
-    const [showLayoutPicker, setShowLayoutPicker] = useState(false);/**
+    const [showLayoutPicker, setShowLayoutPicker] = useState(false);
+    const [detectedShelfCount, setDetectedShelfCount] = useState<number>(0);
+    const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);/**
      * Finishes the conversion process once a layout is chosen.
      */
     const processConversion = (data: AIBackendData, chosenLayout: LayoutData, layoutId: string) => {
@@ -227,13 +245,14 @@ export default function UploadPlanogramPage() {
 
             const fetchedAiData = await aiResponse.json();
 
-            // --- ADDED CONSOLE LOG ---
-            console.log("--- AI Data Received ---", fetchedAiData);
+            // --- ADDED CONSOLE LOG ---            console.log("--- AI Data Received ---", fetchedAiData);
             setAiData(fetchedAiData); // Store AI data in state            // --- NEW LAYOUT MATCHING LOGIC ---
             const shelfCount = fetchedAiData.Cooler?.["Door-1"]?.Sections?.length || 0;
             if (shelfCount === 0) {
                 throw new Error("AI did not detect any shelves in the image.");
             }
+
+            setDetectedShelfCount(shelfCount);
 
             // Find matching layouts WITH their IDs
             const matches: Array<{ id: string; layout: LayoutData }> = Object.entries(availableLayoutsData)
@@ -243,9 +262,17 @@ export default function UploadPlanogramPage() {
             console.log(`[Layout Match] AI has ${shelfCount} shelves. Found ${matches.length} matching layouts.`);
 
             if (matches.length === 0) {
-                toast.error(`No layout found with ${shelfCount} shelves.`, {
-                    description: "Cannot build planogram. Please check the image or available layouts."
+                // NO MATCH: Show all layouts and let user choose
+                const allLayouts = Object.entries(availableLayoutsData)
+                    .map(([id, layout]) => ({ id, layout }));
+                
+                toast.warning(`No cooler configuration matches ${shelfCount} shelves.`, {
+                    description: "Please choose a cooler model to continue."
                 });
+                
+                setMatchingLayouts(allLayouts);
+                setIsNoMatchScenario(true);
+                setShowLayoutPicker(true);
                 setIsLoading(false);
                 return;
             }            if (matches.length === 1) {
@@ -254,6 +281,7 @@ export default function UploadPlanogramPage() {
             } else {
                 // Multiple matches, ask the user - store matches with IDs
                 setMatchingLayouts(matches);
+                setIsNoMatchScenario(false);
                 setShowLayoutPicker(true);
                 setIsLoading(false); // Stop loading while user chooses
             }
@@ -291,10 +319,13 @@ export default function UploadPlanogramPage() {
                 <UploadForm onSubmit={handleUpload} isLoading={true} />
                 {/* Show picker on top */}                <LayoutPicker
                     layouts={matchingLayouts}
+                    isNoMatch={isNoMatchScenario}
+                    detectedShelfCount={detectedShelfCount}
                     onCancel={() => {
                         setShowLayoutPicker(false);
                         setAiData(null);
                         setMatchingLayouts([]);
+                        setIsNoMatchScenario(false);
                     }}
                     onSelectLayout={(layout, layoutId) => {
                         setShowLayoutPicker(false);

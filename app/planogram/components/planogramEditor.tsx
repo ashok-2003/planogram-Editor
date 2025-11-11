@@ -352,13 +352,12 @@ export function PlanogramEditor({
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-
   // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
     // 3. THIS IS THE MODIFIED LOGIC
     if (importedLayout) {
-      // If an imported layout is provided, use it to initialize
-      actions.initializeLayout(selectedLayoutId, importedLayout);
+      // If an imported layout is provided, use it to initialize (force = true to bypass draft)
+      actions.initializeLayout(selectedLayoutId, importedLayout, true);
       toast.success('Successfully imported planogram from image!');
     } else {
       // Otherwise, use the default initialization (which checks localStorage)
@@ -739,7 +738,7 @@ export function PlanogramEditor({
               <BackendStatePreview />
 
               {/* Frontend State Preview - Raw Store Data */}
-              <FrontendStatePreview />
+              {/* <FrontendStatePreview /> */}
             </div>
           </div>
         </div>
