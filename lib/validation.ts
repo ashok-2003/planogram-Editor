@@ -43,6 +43,71 @@ export function findConflicts(refrigerator: Refrigerator): string[] {
   return conflictIds;
 }
 
+/**
+ * Iterates through a refrigerator layout to find all items that violate dimensional constraints.
+ * This includes:
+ * 1. Stack height exceeding shelf max height
+ * 2. Items overflowing the shelf/refrigerator width capacity
+ * @param refrigerator The current state of the refrigerator.
+ * @returns An array of item IDs that are in conflict with dimensional rules.
+ */
+export function findDimensionConflicts(refrigerator: Refrigerator): string[] {
+  const conflictIds: string[] = [];
+
+  for (const rowId in refrigerator) {
+    const row = refrigerator[rowId];
+    
+    // Check 1: Height violations (stack too tall)
+    for (const stack of row.stacks) {
+      const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+      if (stackHeight > row.maxHeight) {
+        stack.forEach(item => {
+          if (!conflictIds.includes(item.id)) {
+            conflictIds.push(item.id);
+          }
+        });
+      }
+    }
+      // Check 2: Width overflow (items exceed shelf capacity)
+    const getStackWidth = (stack: Item[]) => 
+      stack.length === 0 ? 0 : Math.max(...stack.map(item => item.width));
+    
+    const totalWidth = row.stacks.reduce((sum, stack) => sum + getStackWidth(stack), 0);
+    const gapWidth = Math.max(0, row.stacks.length - 1); // 1px gap between stacks
+    const totalWidthWithGaps = totalWidth + gapWidth;
+    
+    // If total width exceeds capacity, mark items as conflicts (rightmost items)
+    if (totalWidthWithGaps > row.capacity) {
+      // Calculate width from left to right to find where overflow starts
+      let accumulatedWidth = 0;
+      const overflowAmount = totalWidthWithGaps - row.capacity;
+      
+      for (let i = 0; i < row.stacks.length; i++) {
+        const stackWidth = getStackWidth(row.stacks[i]);
+        const nextAccumulatedWidth = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0); // Add gap if not first stack
+        
+        // Check if adding this stack would cause us to exceed the "acceptable" width
+        // The acceptable width is capacity, so anything beyond that is overflow
+        const widthAfterThisStack = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0);
+        const widthBeforeThisStack = accumulatedWidth;
+        
+        // If we're in the overflow region (beyond what fits in capacity)
+        if (widthAfterThisStack > row.capacity) {
+          // Mark all items in this stack as conflicting
+          row.stacks[i].forEach(item => {
+            if (!conflictIds.includes(item.id)) {
+              conflictIds.push(item.id);
+            }
+          });
+        }
+        
+        accumulatedWidth = nextAccumulatedWidth;
+      }
+    }
+  }
+  
+  return conflictIds;
+}
 
 /**
  * A centralized function to run all business logic checks when a drag starts.
