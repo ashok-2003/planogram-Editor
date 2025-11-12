@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
@@ -650,14 +651,21 @@ export function PlanogramEditor({
     <div className='w-full h-full'>
       <div className='w-full flex-col'>
         <div className='h-24 w-full flex flex-row justify-between items-center px-6 border border-b mb-6'>
-          <div className='flex flex-col'>
-            <p className='text-2xl font-extrabold text-orange-500'>
-              Shelf Muse
-            </p>
-            <p className='text-xs font-light'>
-              Drag, Drop, and organize product in the refrigerator and shelves.
-            </p>
-          </div>          
+          <div className='flex flex-row justify-center items-center gap-2'>
+
+            <Link href='/'>
+              <img className='w-12 h-12' src='./logo/shelfMuse.svg'></img>
+            </Link>
+
+            <div className='flex flex-col'>
+              <p className='text-2xl font-extrabold text-orange-500'>
+                Shelf Muse
+              </p>
+              <p className='text-xs font-light'>
+                Drag, Drop, and organize product in the refrigerator and shelves.
+              </p>
+            </div>
+          </div>
           <div className="flex gap-4 h-14 items-center">
             {/* Rule Toggle - FIXED   Hidden for now  */}
             {/* <RuleToggle
