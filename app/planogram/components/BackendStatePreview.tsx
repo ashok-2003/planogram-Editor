@@ -9,24 +9,19 @@ import { PIXEL_RATIO } from '@/lib/config';
 import { getElementDimensions } from '@/lib/capture-utils';
 
 export const BackendStatePreview = memo(function BackendStatePreview() {
-  // OPTIMIZATION: Only subscribe to historyIndex to detect state changes
-  // This prevents re-renders during drag operations (which don't change history)
+  // Subscribe to both historyIndex (for state changes) and currentLayoutId (for layout switches)
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
+  const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
   const [copied, setCopied] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const [backendData, setBackendData] = useState<any>(null);
   const [formattedState, setFormattedState] = useState<string>('');
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // CRITICAL FIX: Get data within useMemo to avoid re-renders during drag
-  // We only recalculate when historyIndex changes (actual commits)
-  const { refrigerator, currentLayoutId } = useMemo(() => {
-    const state = usePlanogramStore.getState();
-    return {
-      refrigerator: state.refrigerator,
-      currentLayoutId: state.currentLayoutId
-    };
-  }, [historyIndex]);
+  // Get refrigerator data - recalculates when historyIndex OR currentLayoutId changes
+  const refrigerator = useMemo(() => {
+    return usePlanogramStore.getState().refrigerator;
+  }, [historyIndex, currentLayoutId]);
 
   // --- LAZY CALCULATION: Only calculate when component is visible and data changes ---
   // Uses requestIdleCallback to avoid blocking main thread
