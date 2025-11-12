@@ -667,10 +667,10 @@ export function PlanogramEditor({
 
             {/* Dimension Validation Toggle */}
 
-            {/* <DimensionValidationToggle
+            <DimensionValidationToggle
               isEnabled={isDimensionValidationEnabled}
               onToggle={setIsDimensionValidationEnabled}
-            /> */}
+            />
 
             {/* Bounding Box Debug Toggle */}
             <BoundingBoxToggle
