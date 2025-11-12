@@ -96,11 +96,11 @@ export default function Home() {
               </div>
 
               <h2 className="text-3xl font-semibold text-white mb-4 text-left">
-                Convert Image to PCG
+                Convert PIC to POG
               </h2>
 
               <p className="text-gray-300 text-left mb-8 leading-relaxed">
-                Upload existing planogram images and transform them into editable digital formats instantly.
+                Upload existing shelf images and transform them into editable digital formats instantly.
               </p>
 
               <div className="flex items-center text-white font-medium group-hover:gap-3 gap-2 transition-all">
