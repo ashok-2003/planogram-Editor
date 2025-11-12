@@ -13,7 +13,7 @@ import { BackendStatePreview } from './BackendStatePreview';
 import { FrontendStatePreview } from './FrontendStatePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { runValidation, findConflicts } from '@/lib/validation';
+import { runValidation, findConflicts, findDimensionConflicts } from '@/lib/validation';
 import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
 import { toast } from 'sonner';
 import {
@@ -129,6 +129,33 @@ const BoundingBoxToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: bool
 });
 BoundingBoxToggle.displayName = 'BoundingBoxToggle';
 
+// --- NEW: UI Component for Dimension Validation Toggle ---
+const DimensionValidationToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) => {
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="dimension-toggle" className="text-sm font-medium text-gray-700">
+        Dimension Validation
+      </label>
+      <button
+        id="dimension-toggle"
+        onClick={() => onToggle(!isEnabled)}
+        className={clsx(
+          "inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-2",
+          isEnabled ? 'bg-purple-500' : 'bg-gray-300'
+        )}
+      >
+        <span
+          className={clsx(
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            isEnabled ? 'translate-x-5' : 'translate-x-0'
+          )}
+        />
+      </button>
+    </div>
+  );
+});
+DimensionValidationToggle.displayName = 'DimensionValidationToggle';
+
 // --- NEW: UI Component for Conflict Resolution ---
 const ConflictPanel = React.memo(({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) => {
   return (
@@ -146,6 +173,25 @@ const ConflictPanel = React.memo(({ conflictCount, onRemove, onDisableRules }: {
   );
 });
 ConflictPanel.displayName = 'ConflictPanel';
+
+// --- NEW: UI Component for Dimension Conflict Resolution ---
+const DimensionConflictPanel = React.memo(({ conflictCount, onRemove, onDisable }: { conflictCount: number; onRemove: () => void; onDisable: () => void; }) => {
+  return (
+    <div className="fixed bottom-24 right-5 bg-purple-50 border border-purple-200 text-black px-4 py-3 rounded-sm shadow-lg z-50 max-w-sm">
+      <strong className="font-bold">Dimension Conflict Detected!</strong>
+      <p className="block sm:inline">{conflictCount} item(s) violate dimensional constraints (height/width overflow).</p>
+      <div className="mt-3 flex gap-3">
+        <button onClick={onRemove} className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-sm">
+          Remove Conflicts
+        </button>
+        <button onClick={onDisable} className="bg-transparent hover:bg-purple-200 text-purple-700 font-semibold py-1 px-3 border border-purple-500 hover:border-transparent rounded text-sm">
+          Disable Validation
+        </button>
+      </div>
+    </div>
+  );
+});
+DimensionConflictPanel.displayName = 'DimensionConflictPanel';
 
 // Helper function to format time ago (moved before components that use it)
 function getTimeAgo(date: Date): string {
@@ -343,6 +389,8 @@ export function PlanogramEditor({
   const [showModePrompt, setShowModePrompt] = useState(false); const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
+  const [isDimensionValidationEnabled, setIsDimensionValidationEnabled] = useState(false);
+  const [dimensionConflictIds, setDimensionConflictIds] = useState<string[]>([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
   // <-- FIXED: Use the imported layout ID if available, otherwise default to 'g-26c'
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>(importedLayoutId || 'g-26c');
@@ -406,6 +454,16 @@ export function PlanogramEditor({
       setConflictIds([]);
     }
   }, [refrigerator, isRulesEnabled]);
+
+  // Dimension validation conflict detection
+  useEffect(() => {
+    if (refrigerator && Object.keys(refrigerator).length > 0 && isDimensionValidationEnabled) {
+      const dimensionConflicts = findDimensionConflicts(refrigerator);
+      setDimensionConflictIds(dimensionConflicts);
+    } else if (!isDimensionValidationEnabled) {
+      setDimensionConflictIds([]);
+    }
+  }, [refrigerator, isDimensionValidationEnabled]);
 
   // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
@@ -599,12 +657,20 @@ export function PlanogramEditor({
             <p className='text-xs font-light'>
               Drag, Drop, and organize product in the refrigerator and shelves.
             </p>
-          </div>          <div className="flex gap-2 h-14 items-center">
+          </div>          
+          <div className="flex gap-4 h-14 items-center">
             {/* Rule Toggle - FIXED   Hidden for now  */}
             {/* <RuleToggle
               isEnabled={isRulesEnabled}
               onToggle={setIsRulesEnabled}
             /> */}
+
+            {/* Dimension Validation Toggle */}
+
+            <DimensionValidationToggle
+              isEnabled={isDimensionValidationEnabled}
+              onToggle={setIsDimensionValidationEnabled}
+            />
 
             {/* Bounding Box Debug Toggle */}
             <BoundingBoxToggle
@@ -719,7 +785,10 @@ export function PlanogramEditor({
               <RefrigeratorComponent
                 dragValidation={dragValidation}
                 dropIndicator={dropIndicator}
-                conflictIds={isRulesEnabled ? conflictIds : []}
+                conflictIds={[
+                  ...(isRulesEnabled ? conflictIds : []),
+                  ...(isDimensionValidationEnabled ? dimensionConflictIds : [])
+                ]}
                 selectedLayoutId={selectedLayoutId}
                 showBoundingBoxes={showBoundingBoxes}
               />
@@ -760,6 +829,20 @@ export function PlanogramEditor({
               conflictCount={conflictIds.length}
               onRemove={() => actions.removeItemsById(conflictIds)}
               onDisableRules={() => setIsRulesEnabled(false)}
+            />
+          </motion.div>
+        )}
+        {isDimensionValidationEnabled && dimensionConflictIds.length > 0 && (
+          <motion.div
+            key="dimension-conflict-panel"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+          >
+            <DimensionConflictPanel
+              conflictCount={dimensionConflictIds.length}
+              onRemove={() => actions.removeItemsById(dimensionConflictIds)}
+              onDisable={() => setIsDimensionValidationEnabled(false)}
             />
           </motion.div>
         )}
