@@ -42,9 +42,12 @@ export default function Home() {
         {/* Header Section - 30% of screen */}
         <div className="h-[30vh] flex items-center justify-center border-b border-gray-300">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-orange-500 mb-2">
-              Welcome to ShelfMuse
-            </h1>
+            <div className='flex flex-row text-center items-center justify-center gap-2'>
+              <img className='w-14 h-14' src='./logo/shelfMuse.svg'></img>
+              <h1 className="text-4xl font-bold text-orange-500 mb-2">
+                Welcome to ShelfMuse
+              </h1>
+            </div>
             <p className="text-gray-600 text-md">
               Choose your preferred method to get started
             </p>
