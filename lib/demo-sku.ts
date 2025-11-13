@@ -1291,7 +1291,7 @@ export const demoSkus: Sku[] = [
     heightMM: 165,
     width: Math.round(66 * PIXELS_PER_MM), 
     height: Math.round(165 * PIXELS_PER_MM),
-    imageUrl: 'https://storage.googleapis.com/shelfex-cdn/shelfscan/prod/02/clientUploads/4_1761828729338_02_01_02_SKJDFNDSK_1761828726961_01PNG.png',
+    imageUrl: 'https://storage.googleapis.com/shelfex-cdn/shelfscan/prod/02/clientUploads/4_1762942520557_02_01_02_SKJDFNDSK_1762942519329_01PNG.png',
     constraints: { stackable: false, deletable: true },
   },
   {
