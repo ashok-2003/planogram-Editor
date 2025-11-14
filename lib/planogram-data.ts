@@ -66,10 +66,38 @@ export const availableLayoutsData: { [key: string]: LayoutData } = {
       'row-3': { id: 'row-3', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] },
       'row-4': { id: 'row-4', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] }
     }
-  }
+  },
+  'g-26c-double': {
+    name: 'G-26c Double Door Cooler',
+    doorCount: 2,
+    doors: [
+      {
+        id: 'door-1',
+        width: Math.round(673 * PIXELS_PER_MM),
+        height: Math.round(1308 * PIXELS_PER_MM),
+        layout: {
+          'row-1': { id: 'row-1', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
+          'row-2': { id: 'row-2', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SSS', 'PET_SMALL', 'CAN', 'TETRA'], stacks: [] },
+          'row-3': { id: 'row-3', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['LSS'], stacks: [] },
+          'row-4': { id: 'row-4', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SMS', 'PET_LARGE'], stacks: [] },
+        }
+      },
+      {
+        id: 'door-2',
+        width: Math.round(673 * PIXELS_PER_MM),
+        height: Math.round(1308 * PIXELS_PER_MM),
+        layout: {
+          'row-1': { id: 'row-1', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'TETRA'], stacks: [] },
+          'row-2': { id: 'row-2', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SSS', 'PET_SMALL', 'CAN', 'TETRA'], stacks: [] },
+          'row-3': { id: 'row-3', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['LSS'], stacks: [] },
+          'row-4': { id: 'row-4', capacity: Math.round(673 * PIXELS_PER_MM), maxHeight: Math.round(327 * PIXELS_PER_MM), allowedProductTypes: ['SMS', 'PET_LARGE'], stacks: [] },
+        }
+      }
+    ]
+  },
 };
 
-export const initialLayout: Refrigerator = availableLayoutsData['g-26c'].layout;
+export const initialLayout: Refrigerator = availableLayoutsData['g-26c'].layout || {};
 
 // --- DATA FETCHING FUNCTIONS ---
 export const getAvailableSkus = async (): Promise<Sku[]> => {

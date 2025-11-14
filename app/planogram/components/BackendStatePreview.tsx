@@ -2,8 +2,9 @@
 import { usePlanogramStore } from '@/lib/store';
 import { useMemo, useState, memo, useEffect, useCallback, useRef } from 'react';
 import { Refrigerator } from '@/lib/types';
-import { convertFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backend-transform';
+import { convertFrontendToBackend, convertMultiDoorFrontendToBackend, scaleBackendBoundingBoxes } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
+import { getDoorConfigs } from '@/lib/multi-door-utils';
 import { toast } from 'sonner';
 import { PIXEL_RATIO } from '@/lib/config';
 import { getElementDimensions } from '@/lib/capture-utils';
@@ -93,17 +94,31 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
             console.warn('⚠️ Failed to measure element, using layout dimensions:', error);
             // contentWidth and contentHeight already set to fallback values above
           }
-          
-          // Pass refrigerator state and dimensions to converter
+            // Pass refrigerator state and dimensions to converter
           // The converter will ADD header, grille, and frame to create total dimensions
-          const unscaledData = convertFrontendToBackend(
-            refrigerator as Refrigerator,
-            contentWidth,
-            contentHeight,
-            HEADER_HEIGHT,
-            GRILLE_HEIGHT,
-            FRAME_BORDER
-          );
+          let unscaledData;
+          
+          if (isMultiDoor) {
+            // Multi-door mode: use convertMultiDoorFrontendToBackend
+            const doorConfigs = getDoorConfigs(layoutData);
+            unscaledData = convertMultiDoorFrontendToBackend(
+              refrigerators,
+              doorConfigs,
+              HEADER_HEIGHT,
+              GRILLE_HEIGHT,
+              FRAME_BORDER
+            );
+          } else {
+            // Single-door mode: use original converter
+            unscaledData = convertFrontendToBackend(
+              refrigerator as Refrigerator,
+              contentWidth,
+              contentHeight,
+              HEADER_HEIGHT,
+              GRILLE_HEIGHT,
+              FRAME_BORDER
+            );
+          }
           
           // CRITICAL: Apply the pixel ratio scaling to match BoundingBoxScale
           // This scales all bounding boxes by PIXEL_RATIO (e.g., 3x)
@@ -128,7 +143,7 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
         clearTimeout(calculationTimeoutRef.current);
       }
     };
-  }, [refrigerator, currentLayoutId]);
+  }, [refrigerator, refrigerators, isMultiDoor, currentLayoutId]);
   const handleCopy = useCallback(async () => {
     if (!formattedState || isCalculating) {
       toast.error('Please wait for calculation to complete');

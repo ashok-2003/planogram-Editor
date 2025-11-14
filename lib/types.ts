@@ -47,6 +47,25 @@ export interface Refrigerator {
 }
 
 /**
+ * Represents a single door with its own dimensions and rows.
+ * Used in multi-door refrigerator configurations.
+ */
+export interface DoorConfig {
+  id: string; // e.g., 'door-1', 'door-2'
+  width: number;
+  height: number;
+  layout: Refrigerator; // Each door has its own set of rows
+}
+
+/**
+ * Represents multiple refrigerator doors.
+ * Keys are door IDs (e.g., 'door-1', 'door-2').
+ */
+export interface MultiDoorRefrigerator {
+  [doorId: string]: Refrigerator;
+}
+
+/**
  * Represents a product available in the SKU palette.
  * This is the template used to create new Item instances.
  */
@@ -64,10 +83,15 @@ export interface Sku {
 
 /**
  * Represents a complete layout definition, including dimensions and the refrigerator structure.
+ * Supports both single-door and multi-door configurations.
  */
 export interface LayoutData {
   name: string;
-  width: number;
-  height: number;
-  layout: Refrigerator;
+  // Single-door properties (for backward compatibility)
+  width?: number;
+  height?: number;
+  layout?: Refrigerator;
+  // Multi-door properties
+  doorCount?: number;
+  doors?: DoorConfig[];
 }

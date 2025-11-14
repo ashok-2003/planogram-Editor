@@ -10,6 +10,7 @@ import clsx from 'clsx';
 
 interface RowProps {
   row: RowType;
+  doorId?: string;
   dropIndicator: DropIndicator;
   dragValidation: DragValidation;
   conflictIds: string[];
@@ -17,13 +18,17 @@ interface RowProps {
 
 export const RowComponent = React.memo(function RowComponent({ 
   row, 
+  doorId,
   dropIndicator, 
   dragValidation, 
   conflictIds 
 }: RowProps) {
+  // Create door-specific droppable ID
+  const droppableId = doorId ? `${doorId}:${row.id}` : row.id;
+  
   const { setNodeRef, isOver } = useDroppable({ 
-    id: row.id, 
-    data: { type: 'row', items: row.stacks } 
+    id: droppableId, 
+    data: { type: 'row', rowId: row.id, doorId: doorId, items: row.stacks } 
   });
   
   const stackIds = useMemo(

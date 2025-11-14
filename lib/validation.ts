@@ -1,4 +1,4 @@
-import { Item, Refrigerator, Sku } from './types';
+import { Item, Refrigerator, Sku, MultiDoorRefrigerator } from './types';
 import { DragValidation } from '@/app/planogram/components/planogramEditor';
 
 // This payload contains all the necessary information to run our validation checks.
