@@ -124,7 +124,7 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
         className={clsx(
           'flex items-center justify-center cursor-pointer relative transition-opacity duration-150',
           {
-            'ring-4 ring-blue-500 rounded-md': isSelected,
+            'ring-3 ring-blue-500 rounded-none': isSelected,
             'opacity-90 hover:opacity-100': !isSelected,
           }
         )}
@@ -156,21 +156,42 @@ export const ItemComponent = React.memo(function ItemComponent({ item, isDraggin
             transition: { duration: 0.2 }
           } : undefined}
         /> */}
-        
-        {/* ✅ OPTIMIZED: Plain img */}
-        <img 
-          src={item.imageUrl} 
-          alt={item.name} 
-          className="object-cover w-full h-full pointer-events-none relative z-10 rounded-md"
-          onDragStart={(e) => e.preventDefault()}
-        />
-          {/* Width measurement overlay for BLANK spaces */}
-        {item.productType === 'BLANK' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <div className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
-              {Math.round(item.width / PIXELS_PER_MM)}mm
+          {/* Conditional rendering: BLANK space vs normal item */}
+        {item.productType === 'BLANK' ? (
+          // Enhanced BLANK space design with diagonal lines
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-200 to-blue-300 overflow-hidden">
+            {/* Diagonal lines pattern */}
+            <div 
+              className="absolute inset-0" 
+              style={{
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  transparent,
+                  transparent 10px,
+                  rgba(59, 130, 246, 0.15) 10px,
+                  rgba(59, 130, 246, 0.15) 20px
+                )`
+              }}
+            />
+            
+            {/* Border */}
+            <div className="absolute inset-0 border-2 border-dashed border-blue-400" />
+            
+            {/* Width label */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+              <div className="bg-blue-500 text-white text-sm font-bold px-3 py-1.5 rounded-md shadow-md">
+                {Math.round(item.width / PIXELS_PER_MM)}mm
+              </div>
             </div>
           </div>
+        ) : (
+          // Normal product image
+          <img 
+            src={item.imageUrl} 
+            alt={item.name} 
+            className="object w-full h-full pointer-events-none relative z-10 rounded-none"
+            onDragStart={(e) => e.preventDefault()}
+          />
         )}
       </div>
       {/* </motion.div> COMMENTED OUT - replaced with plain div above */}

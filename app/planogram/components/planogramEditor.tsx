@@ -13,7 +13,7 @@ import { BackendStatePreview } from './BackendStatePreview';
 import { FrontendStatePreview } from './FrontendStatePreview';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { runValidation, findConflicts } from '@/lib/validation';
+import { runValidation, findConflicts, findDimensionConflicts } from '@/lib/validation';
 import { Spinner, PlanogramEditorSkeleton } from './Skeletons';
 import { toast } from 'sonner';
 import {
@@ -25,8 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { getDoorConfigs } from '@/lib/multi-door-utils';
-import '@/lib/clear-drafts'; // Enable window.clearAllDrafts() in console
+import Link from 'next/link';
 
 // --- (All sub-components like ModeToggle, RuleToggle, etc. remain the same) ---
 
@@ -131,6 +130,33 @@ const BoundingBoxToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: bool
 });
 BoundingBoxToggle.displayName = 'BoundingBoxToggle';
 
+// --- NEW: UI Component for Dimension Validation Toggle ---
+const DimensionValidationToggle = React.memo(({ isEnabled, onToggle }: { isEnabled: boolean; onToggle: (enabled: boolean) => void }) => {
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="dimension-toggle" className="text-sm font-medium text-gray-700">
+        Dimension Validation
+      </label>
+      <button
+        id="dimension-toggle"
+        onClick={() => onToggle(!isEnabled)}
+        className={clsx(
+          "inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-2",
+          isEnabled ? 'bg-purple-500' : 'bg-gray-300'
+        )}
+      >
+        <span
+          className={clsx(
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            isEnabled ? 'translate-x-5' : 'translate-x-0'
+          )}
+        />
+      </button>
+    </div>
+  );
+});
+DimensionValidationToggle.displayName = 'DimensionValidationToggle';
+
 // --- NEW: UI Component for Conflict Resolution ---
 const ConflictPanel = React.memo(({ conflictCount, onRemove, onDisableRules }: { conflictCount: number; onRemove: () => void; onDisableRules: () => void; }) => {
   return (
@@ -148,6 +174,25 @@ const ConflictPanel = React.memo(({ conflictCount, onRemove, onDisableRules }: {
   );
 });
 ConflictPanel.displayName = 'ConflictPanel';
+
+// --- NEW: UI Component for Dimension Conflict Resolution ---
+const DimensionConflictPanel = React.memo(({ conflictCount, onRemove, onDisable }: { conflictCount: number; onRemove: () => void; onDisable: () => void; }) => {
+  return (
+    <div className="fixed bottom-24 right-5 bg-purple-50 border border-purple-200 text-black px-4 py-3 rounded-sm shadow-lg z-50 max-w-sm">
+      <strong className="font-bold">Dimension Conflict Detected!</strong>
+      <p className="block sm:inline">{conflictCount} item(s) violate dimensional constraints (height/width overflow).</p>
+      <div className="mt-3 flex gap-3">
+        <button onClick={onRemove} className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-sm">
+          Remove Conflicts
+        </button>
+        <button onClick={onDisable} className="bg-transparent hover:bg-purple-200 text-purple-700 font-semibold py-1 px-3 border border-purple-500 hover:border-transparent rounded text-sm">
+          Disable Validation
+        </button>
+      </div>
+    </div>
+  );
+});
+DimensionConflictPanel.displayName = 'DimensionConflictPanel';
 
 // Helper function to format time ago (moved before components that use it)
 function getTimeAgo(date: Date): string {
@@ -255,14 +300,14 @@ const LayoutSelector = React.memo(({ layouts, selectedLayout, onLayoutChange }: 
 LayoutSelector.displayName = 'LayoutSelector';
 
 // --- Discard Confirmation Dialog ---
-const DiscardConfirmDialog = React.memo(({ 
-  open, 
-  onOpenChange, 
-  onConfirm 
-}: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void; 
-  onConfirm: () => void; 
+const DiscardConfirmDialog = React.memo(({
+  open,
+  onOpenChange,
+  onConfirm
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -319,10 +364,18 @@ interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
   initialLayouts: { [key: string]: LayoutData };
+  importedLayout?: Refrigerator | null;
+  importedLayoutId?: string | null; // <-- NEW: The layout ID that was detected
 }
 
-export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: PlanogramEditorProps) {
-  const { refrigerator, refrigerators, isMultiDoor, actions, findStackLocation } = usePlanogramStore();
+export function PlanogramEditor({
+  initialSkus,
+  initialLayout,
+  initialLayouts,
+  importedLayout = null,
+  importedLayoutId = null // <-- NEW: Accept the detected layout ID
+}: PlanogramEditorProps) {
+  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
 
@@ -338,28 +391,36 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
   const [showModePrompt, setShowModePrompt] = useState(false); const [invalidModeAttempts, setInvalidModeAttempts] = useState(0);
   const [isRulesEnabled, setIsRulesEnabled] = useState(false);
   const [conflictIds, setConflictIds] = useState<string[]>([]);
+  const [isDimensionValidationEnabled, setIsDimensionValidationEnabled] = useState(false);
+  const [dimensionConflictIds, setDimensionConflictIds] = useState<string[]>([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
-  const [selectedLayoutId, setSelectedLayoutId] = useState<string>('g-26c');
-  const [isLoading, setIsLoading] = useState(true);  const [isCaptureLoading, setIsCaptureLoading] = useState(false);
+  // <-- FIXED: Use the imported layout ID if available, otherwise default to 'g-26c'
+  const [selectedLayoutId, setSelectedLayoutId] = useState<string>(importedLayoutId || 'g-26c');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < history.length - 1;  // Get door configurations for current layout
-  const currentDoorConfigs = useMemo(() => {
-    return getDoorConfigs(initialLayouts[selectedLayoutId]);
-  }, [selectedLayoutId, initialLayouts]);
+  const canRedo = historyIndex < history.length - 1;
   // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
-    // Initialize layout on mount
-    const layoutData = initialLayouts[selectedLayoutId];
-    actions.initializeLayout(selectedLayoutId, initialLayout, layoutData);
+    // 3. THIS IS THE MODIFIED LOGIC
+    if (importedLayout) {
+      // If an imported layout is provided, use it to initialize (force = true to bypass draft)
+      actions.initializeLayout(selectedLayoutId, importedLayout, true);
+      toast.success('Successfully imported planogram from image!');
+    } else {
+      // Otherwise, use the default initialization (which checks localStorage)
+      actions.initializeLayout(selectedLayoutId, initialLayout);
+    }
+    // END OF MODIFICATION
 
     // Simulate minimum loading time for smooth UX
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
     return () => clearTimeout(loadingTimer);
-  }, []);
+  }, []); // This still only runs once on mount
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -399,7 +460,19 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     } else {
       setConflictIds([]);
     }
-  }, [refrigerator, refrigerators, isMultiDoor, isRulesEnabled]);  // NEW: Update handler to use store action (Phase 10)
+  }, [refrigerator, isRulesEnabled]);
+
+  // Dimension validation conflict detection
+  useEffect(() => {
+    if (refrigerator && Object.keys(refrigerator).length > 0 && isDimensionValidationEnabled) {
+      const dimensionConflicts = findDimensionConflicts(refrigerator);
+      setDimensionConflictIds(dimensionConflicts);
+    } else if (!isDimensionValidationEnabled) {
+      setDimensionConflictIds([]);
+    }
+  }, [refrigerator, isDimensionValidationEnabled]);
+
+  // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
     setSelectedLayoutId(layoutId);
     const layoutData = initialLayouts[layoutId];
@@ -407,7 +480,7 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     if (newLayout) {
       actions.switchLayout(layoutId, newLayout, layoutData);
     }
-  }, [initialLayouts, actions]);const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
+  }, [initialLayouts, actions]); const handleModeChange = useCallback((newMode: 'reorder' | 'stack') => {
     setInteractionMode(newMode);
     setShowModePrompt(false);
     setInvalidModeAttempts(0);
@@ -622,18 +695,33 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
     <div className='w-full h-full'>
       <div className='w-full flex-col'>
         <div className='h-24 w-full flex flex-row justify-between items-center px-6 border border-b mb-6'>
-          <div className='flex flex-col'>
-            <p className='text-2xl font-extrabold text-orange-500'>
-              Shelf Muse
-            </p>
-            <p className='text-xs font-light'>
-              Drag, Drop, and organize product in the refrigerator and shelves.
-            </p>
-          </div>          <div className="flex gap-2 h-14 items-center">
-            {/* Rule Toggle - FIXED */}
-            <RuleToggle
+          <div className='flex flex-row justify-center items-center gap-2'>
+
+            <Link href='/'>
+              <img className='w-12 h-12' src='./logo/shelfMuse.svg'></img>
+            </Link>
+
+            <div className='flex flex-col'>
+              <p className='text-2xl font-extrabold text-orange-500'>
+                Shelf Muse
+              </p>
+              <p className='text-xs font-light'>
+                Drag, Drop, and organize product in the refrigerator and shelves.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-4 h-14 items-center">
+            {/* Rule Toggle - FIXED   Hidden for now  */}
+            {/* <RuleToggle
               isEnabled={isRulesEnabled}
               onToggle={setIsRulesEnabled}
+            /> */}
+
+            {/* Dimension Validation Toggle */}
+
+            <DimensionValidationToggle
+              isEnabled={isDimensionValidationEnabled}
+              onToggle={setIsDimensionValidationEnabled}
             />
 
             {/* Bounding Box Debug Toggle */}
@@ -745,20 +833,17 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
             <div className='w-full flex flex-row justify-between items-center'>
               <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
               <ModeToggle mode={interactionMode} setMode={handleModeChange} />
-            </div>            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2 gap-0'>
-              {currentDoorConfigs.map((doorConfig, index) => (
-                <RefrigeratorComponent
-                  key={doorConfig.id}
-                  doorId={doorConfig.id}
-                  doorIndex={index}
-                  doorConfig={doorConfig}
-                  dragValidation={dragValidation}
-                  dropIndicator={dropIndicator}
-                  conflictIds={isRulesEnabled ? conflictIds : []}
-                  selectedLayoutId={selectedLayoutId}
-                  showBoundingBoxes={showBoundingBoxes}
-                />
-              ))}
+            </div>            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
+              <RefrigeratorComponent
+                dragValidation={dragValidation}
+                dropIndicator={dropIndicator}
+                conflictIds={[
+                  ...(isRulesEnabled ? conflictIds : []),
+                  ...(isDimensionValidationEnabled ? dimensionConflictIds : [])
+                ]}
+                selectedLayoutId={selectedLayoutId}
+                showBoundingBoxes={showBoundingBoxes}
+              />
             </div>
           </div>
 
@@ -796,6 +881,20 @@ export function PlanogramEditor({ initialSkus, initialLayout, initialLayouts }: 
               conflictCount={conflictIds.length}
               onRemove={() => actions.removeItemsById(conflictIds)}
               onDisableRules={() => setIsRulesEnabled(false)}
+            />
+          </motion.div>
+        )}
+        {isDimensionValidationEnabled && dimensionConflictIds.length > 0 && (
+          <motion.div
+            key="dimension-conflict-panel"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+          >
+            <DimensionConflictPanel
+              conflictCount={dimensionConflictIds.length}
+              onRemove={() => actions.removeItemsById(dimensionConflictIds)}
+              onDisable={() => setIsDimensionValidationEnabled(false)}
             />
           </motion.div>
         )}

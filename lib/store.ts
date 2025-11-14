@@ -53,8 +53,8 @@ interface PlanogramState {
     // NEW: Update blank space width
     updateBlankWidth: (itemId: string, newWidthMM: number) => void;
       // Persistence actions
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator, layoutData?: any) => void;
-    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => void;
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit?: boolean) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator) => void;
     restoreDraft: () => void;
     dismissDraft: () => void;
     clearDraft: () => void;
@@ -743,7 +743,22 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
     // ========================================
     // Persistence Actions
     // ========================================
-      initializeLayout: (layoutId: string, initialLayout: Refrigerator, layoutData?: any) => {
+      initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit = false) => {
+      // If forceInit is true (e.g., from AI import), skip draft check and use provided layout
+      if (forceInit) {
+        set({
+          refrigerator: initialLayout,
+          history: [produce(initialLayout, () => {})],
+          historyIndex: 0,
+          currentLayoutId: layoutId,
+          hasPendingDraft: false,
+          draftMetadata: null,
+          syncStatus: 'idle',
+          selectedItemId: null
+        });
+        return;
+      }
+      
       const draft = loadFromLocalStorage(layoutId);
       
       // Check if this is a multi-door layout
