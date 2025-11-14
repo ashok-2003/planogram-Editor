@@ -289,8 +289,7 @@ function LayoutPicker({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-4 max-h-60 overflow-y-auto">
-                    {layouts.map(({ id, layout }) => (
-                        <Button
+                    {layouts.map(({ id, layout }) => (                        <Button
                             key={id}
                             variant={isNoMatch && id === 'g-26c' ? 'default' : 'outline'}
                             className="w-full justify-start h-auto"
@@ -302,7 +301,7 @@ function LayoutPicker({
                                     {isNoMatch && id === 'g-26c' && ' (Recommended)'}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    {Object.keys(layout.layout).length} Shelves | {layout.width}px
+                                    {layout.layout ? Object.keys(layout.layout).length : 0} Shelves | {layout.width}px
                                     wide
                                 </p>
                             </div>
@@ -460,13 +459,11 @@ export default function UploadPlanogramPage() {
                 throw new Error('AI did not detect any shelves in the image.');
             }
 
-            setDetectedShelfCount(shelfCount);
-
-            // Find matching layouts WITH their IDs
+            setDetectedShelfCount(shelfCount);            // Find matching layouts WITH their IDs
             const matches: Array<{ id: string; layout: LayoutData }> = Object.entries(
                 availableLayoutsData
             )
-                .filter(([_, layout]) => Object.keys(layout.layout).length === shelfCount)
+                .filter(([_, layout]) => layout.layout && Object.keys(layout.layout).length === shelfCount)
                 .map(([id, layout]) => ({ id, layout }));
 
             console.log(
@@ -511,17 +508,21 @@ export default function UploadPlanogramPage() {
             setUploadStep('idle'); // <-- NEW
             toast.error(err.message || 'Failed to generate planogram.');
         }
-    };
-
-    // --- Conditional Rendering ---
+    };    // --- Conditional Rendering ---
     // Show editor *after* layout is successfully imported
     if (importedLayout) {
+        const defaultLayout = availableLayoutsData['g-26c'].layout;
+        if (!defaultLayout) {
+            toast.error('Default layout not found');
+            return null;
+        }
+        
         return (
             <main className="w-full h-full">
                 <div>
                     <PlanogramEditor
                         initialSkus={availableSkus}
-                        initialLayout={availableLayoutsData['g-26c'].layout} // Base layout (will be overridden)
+                        initialLayout={defaultLayout} // Base layout (will be overridden)
                         initialLayouts={availableLayoutsData}
                         importedLayout={importedLayout} // Pass the new layout as a prop
                         importedLayoutId={detectedLayoutId} // Pass the detected layout ID

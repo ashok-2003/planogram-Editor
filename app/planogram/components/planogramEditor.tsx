@@ -374,8 +374,9 @@ export function PlanogramEditor({
   initialLayouts,
   importedLayout = null,
   importedLayoutId = null // <-- NEW: Accept the detected layout ID
-}: PlanogramEditorProps) {
-  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+}: PlanogramEditorProps) {  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+  const refrigerators = usePlanogramStore((state) => state.refrigerators);
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
 
@@ -399,19 +400,22 @@ export function PlanogramEditor({
   const [isLoading, setIsLoading] = useState(true);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
-
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
   // NEW: Single initialization useEffect (Phase 9)
   useEffect(() => {
-    // 3. THIS IS THE MODIFIED LOGIC
+    // 3. THIS IS THE MODIFIED LOGIC - Now passing layoutData for multi-door support
     if (importedLayout) {
       // If an imported layout is provided, use it to initialize (force = true to bypass draft)
-      actions.initializeLayout(selectedLayoutId, importedLayout, true);
+      // Pass the layoutData so store knows if it's multi-door
+      const layoutData = initialLayouts[selectedLayoutId];
+      actions.initializeLayout(selectedLayoutId, importedLayout, true, layoutData);
       toast.success('Successfully imported planogram from image!');
     } else {
       // Otherwise, use the default initialization (which checks localStorage)
-      actions.initializeLayout(selectedLayoutId, initialLayout);
+      // Pass the layoutData so store knows if it's multi-door
+      const layoutData = initialLayouts[selectedLayoutId];
+      actions.initializeLayout(selectedLayoutId, initialLayout, false, layoutData);
     }
     // END OF MODIFICATION
 
