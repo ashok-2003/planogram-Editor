@@ -51,10 +51,9 @@ interface PlanogramState {
     redo: () => void;
     
     // NEW: Update blank space width
-    updateBlankWidth: (itemId: string, newWidthMM: number) => void;
-      // Persistence actions
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit?: boolean) => void;
-    switchLayout: (layoutId: string, newLayout: Refrigerator) => void;
+    updateBlankWidth: (itemId: string, newWidthMM: number) => void;    // Persistence actions
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit?: boolean, layoutData?: any) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => void;
     restoreDraft: () => void;
     dismissDraft: () => void;
     clearDraft: () => void;
@@ -739,11 +738,10 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         return { refrigerator: newFridge, ...historyUpdate };
       });
     },
-    
-    // ========================================
+      // ========================================
     // Persistence Actions
     // ========================================
-      initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit = false) => {
+      initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit = false, layoutData?: any) => {
       // If forceInit is true (e.g., from AI import), skip draft check and use provided layout
       if (forceInit) {
         set({
