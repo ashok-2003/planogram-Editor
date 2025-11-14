@@ -317,146 +317,152 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         if (!selectedItemId) return;
         actions.removeItemsById([selectedItemId]);
     },    removeItemsById: (itemIds) => {
-      set(state => {
-        const { findStackLocation, actions } = get();
-        
-        // Find which door(s) contain these items
-        const doorsToUpdate = new Set<string>();
-        for (const itemId of itemIds) {
-          const location = findStackLocation(itemId);
-          if (location) {
-            doorsToUpdate.add(location.doorId || 'door-1');
-          }
+      const { findStackLocation, actions } = get();
+      
+      // Find which door(s) contain these items
+      const doorsToUpdate = new Set<string>();
+      for (const itemId of itemIds) {
+        const location = findStackLocation(itemId);
+        if (location) {
+          doorsToUpdate.add(location.doorId || 'door-1');
         }
+      }
+      
+      // Update each affected door
+      let itemsRemoved = false;
+      for (const doorId of doorsToUpdate) {
+        const currentFridge = actions._getRefrigeratorData(doorId);
         
-        // Update each affected door
-        let itemsRemoved = false;
-        for (const doorId of doorsToUpdate) {
-          const currentFridge = actions._getRefrigeratorData(doorId);
-          
-          const newFridge = produce(currentFridge, draft => {
-            for (const rowId in draft) {
-              // Filter out empty stacks that result from removing items
-              draft[rowId].stacks = draft[rowId].stacks
-                .map((stack: Item[]) => {
-                  // Filter out the items to be removed from this stack
-                  return stack.filter(item => {
-                    const shouldRemove = itemIds.includes(item.id);
-                    if (shouldRemove) itemsRemoved = true;
-                    return !shouldRemove;
-                  });
-                })
-                // After filtering items, filter out any stacks that are now empty
-                .filter((stack: Item[]) => stack.length > 0);
-            }
-          });
-          
-          if (itemsRemoved) {
-            actions._updateRefrigeratorData(newFridge, doorId);
+        const newFridge = produce(currentFridge, draft => {
+          for (const rowId in draft) {
+            // Filter out empty stacks that result from removing items
+            draft[rowId].stacks = draft[rowId].stacks
+              .map((stack: Item[]) => {
+                // Filter out the items to be removed from this stack
+                return stack.filter(item => {
+                  const shouldRemove = itemIds.includes(item.id);
+                  if (shouldRemove) itemsRemoved = true;
+                  return !shouldRemove;
+                });
+              })
+              // After filtering items, filter out any stacks that are now empty
+              .filter((stack: Item[]) => stack.length > 0);
           }
-        }
+        });
         
         if (itemsRemoved) {
-          return { selectedItemId: null };
+          actions._updateRefrigeratorData(newFridge, doorId);
         }
-        return state; // No changes
-      });
-    },duplicateAndAddNew: () => {
-        const { selectedItemId, findStackLocation } = get();
+      }
+      
+      if (itemsRemoved) {
+        set({ selectedItemId: null });
+      }
+    },    duplicateAndAddNew: () => {
+        const { selectedItemId, findStackLocation, actions } = get();
         if (!selectedItemId) return;
         
         const location = findStackLocation(selectedItemId);
         if (!location) return;
 
-        set(state => {
-            const row = state.refrigerator[location.rowId];
-            const stack = row.stacks[location.stackIndex];
-            const item = stack.find((i: Item) => i.id === selectedItemId);
-            if (!item) return state;            const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
+        const doorId = location.doorId || 'door-1';
+        const currentFridge = actions._getRefrigeratorData(doorId);
+        const row = currentFridge[location.rowId];
+        const stack = row.stacks[location.stackIndex];
+        const item = stack.find((i: Item) => i.id === selectedItemId);
+        if (!item) return;
+
+        const newItem = { ...item, id: generateUniqueId(item.skuId) };
+        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
+        
+        // Account for gaps between stacks (1px per gap)
+        const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
+        
+        if (currentWidth + newItem.width + gapWidth <= row.capacity) {
+            const newFridge = produce(currentFridge, draft => {
+                draft[location.rowId].stacks.push([newItem]);
+            });
             
-            // Account for gaps between stacks (1px per gap)
-            const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
-            
-            if (currentWidth + newItem.width + gapWidth <= row.capacity) {
-                const newFridge = produce(state.refrigerator, draft => {
-                    draft[location.rowId].stacks.push([newItem]);
-                });                toast.success('Item duplicated successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-                return { refrigerator: newFridge, ...historyUpdate };
-            } else {
-                toast.error('Not enough space in the row to duplicate!');
-                return state;
-            }
-        });
+            toast.success('Item duplicated successfully!');
+            actions._updateRefrigeratorData(newFridge, doorId);
+        } else {
+            toast.error('Not enough space in the row to duplicate!');
+        }
     },    duplicateAndStack: () => {
-        const { selectedItemId, findStackLocation } = get();
+        const { selectedItemId, findStackLocation, actions } = get();
         if (!selectedItemId) return;
         
         const location = findStackLocation(selectedItemId);
         if (!location) return;
 
-        set(state => {
-            const row = state.refrigerator[location.rowId];
-            const stack = row.stacks[location.stackIndex];
-            const item = stack.find((i: Item) => i.id === selectedItemId);
-            if (!item || !item.constraints.stackable) return state;
+        const doorId = location.doorId || 'door-1';
+        const currentFridge = actions._getRefrigeratorData(doorId);
+        const row = currentFridge[location.rowId];
+        const stack = row.stacks[location.stackIndex];
+        const item = stack.find((i: Item) => i.id === selectedItemId);
+        if (!item || !item.constraints.stackable) return;
 
-            const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+        const newItem = { ...item, id: generateUniqueId(item.skuId) };
+        const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+        
+        if (currentStackHeight + newItem.height <= row.maxHeight) {
+            const newFridge = produce(currentFridge, draft => {
+                draft[location.rowId].stacks[location.stackIndex].push(newItem);
+            });
             
-            if (currentStackHeight + newItem.height <= row.maxHeight) {
-                const newFridge = produce(state.refrigerator, draft => {
-                    draft[location.rowId].stacks[location.stackIndex].push(newItem);
-                });                toast.success('Item stacked successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-                return { refrigerator: newFridge, ...historyUpdate };
-            } else {
-                toast.error('Cannot stack - exceeds maximum row height!');
-                return state;
-            }
-        });
+            toast.success('Item stacked successfully!');
+            actions._updateRefrigeratorData(newFridge, doorId);
+        } else {
+            toast.error('Cannot stack - exceeds maximum row height!');
+        }
     },    replaceSelectedItem: (newSku, isRulesEnabled = true) => {
-      const { selectedItemId, findStackLocation } = get();
+      const { selectedItemId, findStackLocation, actions } = get();
       if (!selectedItemId) return;
 
       const location = findStackLocation(selectedItemId);
       if (!location) return;
       
-      set(state => {
-        const row = state.refrigerator[location.rowId];
-        const stack = row.stacks[location.stackIndex];
-        const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
-        const oldItem = stack[itemIndex];
-        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
+      const doorId = location.doorId || 'door-1';
+      const currentFridge = actions._getRefrigeratorData(doorId);
+      const row = currentFridge[location.rowId];
+      const stack = row.stacks[location.stackIndex];
+      const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
+      const oldItem = stack[itemIndex];
+      const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
-        // Only check product type rules if rules are enabled
-        if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
-          toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
-          return state;
-        }          // Always check size constraints (width and height)
-        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
-        const widthDifference = newItem.width - oldItem.width;
-        
-        // Account for gaps between stacks (1px per gap)
-        const gapWidth = Math.max(0, row.stacks.length - 1);
-        
-        if (currentWidth + widthDifference + gapWidth > row.capacity) {
-          toast.error('Cannot replace: The new item is too wide for this row.');
-          return state;
-        }
-        const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
-        const heightDifference = newItem.height - oldItem.height;
-        if (currentStackHeight + heightDifference > row.maxHeight) {
-          toast.error('Cannot replace: The new item is too tall for this stack.');
-          return state;
-        }
-        
-        const newFridge = produce(state.refrigerator, draft => {
-          draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
-        });        toast.success('Item replaced successfully!');
-        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-        return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
+      // Only check product type rules if rules are enabled
+      if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
+        toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
+        return;
+      }
+
+      // Always check size constraints (width and height)
+      const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
+      const widthDifference = newItem.width - oldItem.width;
+      
+      // Account for gaps between stacks (1px per gap)
+      const gapWidth = Math.max(0, row.stacks.length - 1);
+      
+      if (currentWidth + widthDifference + gapWidth > row.capacity) {
+        toast.error('Cannot replace: The new item is too wide for this row.');
+        return;
+      }
+      
+      const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+      const heightDifference = newItem.height - oldItem.height;
+      if (currentStackHeight + heightDifference > row.maxHeight) {
+        toast.error('Cannot replace: The new item is too tall for this stack.');
+        return;
+      }
+      
+      const newFridge = produce(currentFridge, draft => {
+        draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
+      });
+      
+      toast.success('Item replaced successfully!');
+      actions._updateRefrigeratorData(newFridge, doorId);
+      set({ selectedItemId: newItem.id });
+    },addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
         const { actions } = get();
         
         // Use provided doorId, or default to door-1
@@ -493,116 +499,110 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         });
         
         console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: newFridge[targetRowId].stacks.length });
-        actions._updateRefrigeratorData(newFridge, finalDoorId);
-    },moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
-        set(state => {
-            const { findStackLocation, actions, isMultiDoor } = get();
-            const location = findStackLocation(itemId);
-            if (!location) return state;
+        actions._updateRefrigeratorData(newFridge, finalDoorId);    },moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
+        const { findStackLocation, actions, isMultiDoor } = get();
+        const location = findStackLocation(itemId);
+        if (!location) return;
 
-            const sourceDoorId = location.doorId || 'door-1';
-            const finalTargetDoorId = targetDoorId || sourceDoorId;
-            
-            // Check if it's a cross-door move
-            const isCrossDoorMove = isMultiDoor && sourceDoorId !== finalTargetDoorId;
-            
-            if (isCrossDoorMove) {
-              // Cross-door move: remove from source, add to target
-              const sourceFridge = actions._getRefrigeratorData(sourceDoorId);
-              const targetFridge = actions._getRefrigeratorData(finalTargetDoorId);
-              const draggedStack = sourceFridge[location.rowId].stacks[location.stackIndex];
-              
-              // Update source door
-              const newSourceFridge = produce(sourceFridge, draft => {
-                draft[location.rowId].stacks.splice(location.stackIndex, 1);
-              });
-              
-              // Update target door
-              const newTargetFridge = produce(targetFridge, draft => {
-                const targetRow = draft[targetRowId];
-                if (targetStackIndex !== undefined) {
-                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
-                } else {
-                  targetRow.stacks.push(draggedStack);
-                }
-              });
-              
-              // Update both doors
-              actions._updateRefrigeratorData(newSourceFridge, sourceDoorId);
-              actions._updateRefrigeratorData(newTargetFridge, finalTargetDoorId);
-              
+        const sourceDoorId = location.doorId || 'door-1';
+        const finalTargetDoorId = targetDoorId || sourceDoorId;
+        
+        // Check if it's a cross-door move
+        const isCrossDoorMove = isMultiDoor && sourceDoorId !== finalTargetDoorId;
+        
+        if (isCrossDoorMove) {
+          // Cross-door move: remove from source, add to target
+          const sourceFridge = actions._getRefrigeratorData(sourceDoorId);
+          const targetFridge = actions._getRefrigeratorData(finalTargetDoorId);
+          const draggedStack = sourceFridge[location.rowId].stacks[location.stackIndex];
+          
+          // Update source door
+          const newSourceFridge = produce(sourceFridge, draft => {
+            draft[location.rowId].stacks.splice(location.stackIndex, 1);
+          });
+          
+          // Update target door
+          const newTargetFridge = produce(targetFridge, draft => {
+            const targetRow = draft[targetRowId];
+            if (targetStackIndex !== undefined) {
+              targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
             } else {
-              // Same-door move
-              const currentFridge = actions._getRefrigeratorData(sourceDoorId);
-              const draggedStack = currentFridge[location.rowId].stacks[location.stackIndex];
-                const newFridge = produce(currentFridge, draft => {
-                draft[location.rowId].stacks.splice(location.stackIndex, 1);
-                
-                const targetRow = draft[targetRowId];
-                if (targetStackIndex !== undefined) {
-                    targetRow.stacks.splice(targetStackIndex, 0, draggedStack);              } else {
-                    targetRow.stacks.push(draggedStack);
-                }
-              });
-
-              actions._updateRefrigeratorData(newFridge, sourceDoorId);
+              targetRow.stacks.push(draggedStack);
             }
-            return state;
-        });
+          });
+          
+          // Update both doors
+          actions._updateRefrigeratorData(newSourceFridge, sourceDoorId);
+          actions._updateRefrigeratorData(newTargetFridge, finalTargetDoorId);
+          
+        } else {
+          // Same-door move
+          const currentFridge = actions._getRefrigeratorData(sourceDoorId);
+          const draggedStack = currentFridge[location.rowId].stacks[location.stackIndex];
+          
+          const newFridge = produce(currentFridge, draft => {
+            draft[location.rowId].stacks.splice(location.stackIndex, 1);
+            
+            const targetRow = draft[targetRowId];
+            if (targetStackIndex !== undefined) {
+              targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+            } else {
+              targetRow.stacks.push(draggedStack);
+            }
+          });
+
+          actions._updateRefrigeratorData(newFridge, sourceDoorId);
+        }
     },    reorderStack: (rowId, oldIndex, newIndex, doorId?: string) => {
-        set(state => {
-            const { actions } = get();
-            
-            // Use provided doorId or try to find it
-            const finalDoorId = doorId || (state.isMultiDoor 
-              ? Object.keys(state.refrigerators).find(dId => 
-                  state.refrigerators[dId][rowId]?.stacks?.[oldIndex]?.[0]?.id
-                )
-              : undefined) || 'door-1';
-              const currentFridge = actions._getRefrigeratorData(finalDoorId);
-            const newFridge = produce(currentFridge, draft => {
-              draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
-            });
-            
-            actions._updateRefrigeratorData(newFridge, finalDoorId);
-            return state;
+        const { actions, isMultiDoor, refrigerators } = get();
+        
+        // Use provided doorId or try to find it
+        const finalDoorId = doorId || (isMultiDoor 
+          ? Object.keys(refrigerators).find(dId => 
+              refrigerators[dId][rowId]?.stacks?.[oldIndex]?.[0]?.id
+            )
+          : undefined) || 'door-1';
+          
+        const currentFridge = actions._getRefrigeratorData(finalDoorId);
+        const newFridge = produce(currentFridge, draft => {
+          draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
         });
+        
+        actions._updateRefrigeratorData(newFridge, finalDoorId);
     },    stackItem: (draggedStackId, targetStackId) => {
-        set(state => {
-            const { findStackLocation, actions } = get();
-            const draggedLocation = findStackLocation(draggedStackId);
-            const targetLocation = findStackLocation(targetStackId);
+        const { findStackLocation, actions } = get();
+        const draggedLocation = findStackLocation(draggedStackId);
+        const targetLocation = findStackLocation(targetStackId);
 
-            if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
-                return state;
-            }
-            
-            // Ensure both items are in the same door
-            if (draggedLocation.doorId !== targetLocation.doorId) {
-                toast.error('Cannot stack items across different doors');
-                return state;
-            }
-            
-            const doorId = draggedLocation.doorId || 'door-1';
-            const currentFridge = actions._getRefrigeratorData(doorId);
-            const row = currentFridge[draggedLocation.rowId];
-            const draggedStack = row.stacks[draggedLocation.stackIndex];
-            const itemToStack = draggedStack[0];
-              const newFridge = produce(currentFridge, draft => {
-              // Add item to target stack
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
-              
-              // Auto-sort by width: ASCENDING (narrowest first in array)
-              // With flex-col-reverse: array[0] (narrow) shows at TOP, array[last] (wide) shows at BOTTOM
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => a.width - b.width);
-              
-              // Remove the original stack
-              draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
-            });
-
-            actions._updateRefrigeratorData(newFridge, doorId);
-            return state;
+        if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
+            return;
+        }
+        
+        // Ensure both items are in the same door
+        if (draggedLocation.doorId !== targetLocation.doorId) {
+            toast.error('Cannot stack items across different doors');
+            return;
+        }
+        
+        const doorId = draggedLocation.doorId || 'door-1';
+        const currentFridge = actions._getRefrigeratorData(doorId);
+        const row = currentFridge[draggedLocation.rowId];
+        const draggedStack = row.stacks[draggedLocation.stackIndex];
+        const itemToStack = draggedStack[0];
+          
+        const newFridge = produce(currentFridge, draft => {
+          // Add item to target stack
+          draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+          
+          // Auto-sort by width: ASCENDING (narrowest first in array)
+          // With flex-col-reverse: array[0] (narrow) shows at TOP, array[last] (wide) shows at BOTTOM
+          draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => a.width - b.width);
+          
+          // Remove the original stack
+          draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
         });
+
+        actions._updateRefrigeratorData(newFridge, doorId);
     },undo: () => {
       set(state => {
         if (state.historyIndex > 0) {
@@ -661,81 +661,80 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           return state;        }
       });
     },
-    
-    // ========================================
+      // ========================================
     // Blank Space Width Update
     // ========================================
-      updateBlankWidth: (itemId: string, newWidthMM: number) => {
-      set(state => {
-        const { findStackLocation } = get();
-        const location = findStackLocation(itemId);
+    
+    updateBlankWidth: (itemId: string, newWidthMM: number) => {
+      const { findStackLocation, actions } = get();
+      const location = findStackLocation(itemId);
+      
+      if (!location) {
+        toast.error('Item not found');
+        return;
+      }
+      
+      const doorId = location.doorId || 'door-1';
+      const currentFridge = actions._getRefrigeratorData(doorId);
+      const item = currentFridge[location.rowId].stacks[location.stackIndex][location.itemIndex];
+      
+      // Only allow width update for BLANK spaces
+      if (item.productType !== 'BLANK') {
+        toast.error('Width can only be adjusted for blank spaces');
+        return;
+      }
+      
+      const row = currentFridge[location.rowId];
+      
+      // CRITICAL FIX: Only count the bottom (first) item of each stack
+      // Stacked items (index > 0) don't take horizontal space
+      const usedWidth = row.stacks.reduce((sum, stack) => {
+        // Only count the first item (bottom of stack)
+        const bottomItem = stack[0];
+        if (!bottomItem) return sum;
         
-        if (!location) {
-          toast.error('Item not found');
-          return state;
+        // If this is the selected item's stack, don't count it
+        if (stack.some(stackItem => stackItem.id === itemId)) {
+          return sum;
         }
         
-        const item = state.refrigerator[location.rowId].stacks[location.stackIndex][location.itemIndex];
-        
-        // Only allow width update for BLANK spaces
-        if (item.productType !== 'BLANK') {
-          toast.error('Width can only be adjusted for blank spaces');
-          return state;
-        }
-        
-        const row = state.refrigerator[location.rowId];
-        
-        // CRITICAL FIX: Only count the bottom (first) item of each stack
-        // Stacked items (index > 0) don't take horizontal space
-        const usedWidth = row.stacks.reduce((sum, stack) => {
-          // Only count the first item (bottom of stack)
-          const bottomItem = stack[0];
-          if (!bottomItem) return sum;
-          
-          // If this is the selected item's stack, don't count it
-          if (stack.some(stackItem => stackItem.id === itemId)) {
-            return sum;
-          }
-          
-          // Add the bottom item's width (stacked items don't take horizontal space)
-          return sum + bottomItem.width;
-        }, 0);
-        
-        // CRITICAL FIX: Account for 1px gaps between OTHER stacks (excluding the selected one)
-        // We need to count gaps between OTHER stacks (excluding the selected one)
-        // Example: If there are 3 total stacks and we're editing one:
-        //   - Other stacks: 2
-        //   - Gaps between other stacks: 2 - 1 = 1px
-        const otherStacksCount = row.stacks.filter(stack => !stack.some(stackItem => stackItem.id === itemId)).length;
-        const gapWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
-        
-        const availableWidth = row.capacity - usedWidth - gapWidth;
-        
-        // Clamp to min/max (min: 25mm, max: available space)
-        const MIN_WIDTH_MM = 25;
-        const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
-        const MAX_WIDTH = availableWidth;
-        
-        const newWidth = Math.round(newWidthMM * PIXELS_PER_MM);
-        const clampedWidth = Math.max(MIN_WIDTH, Math.min(newWidth, MAX_WIDTH));
-        const clampedWidthMM = clampedWidth / PIXELS_PER_MM;
-        
-        // If no change, don't update
-        if (clampedWidth === item.width) {
-          return state;
-        }
-        
-        // Update item width
-        const newFridge = produce(state.refrigerator, draft => {
-          const targetItem = draft[location.rowId].stacks[location.stackIndex][location.itemIndex];
-          targetItem.width = clampedWidth;
-          targetItem.widthMM = clampedWidthMM;
-          targetItem.customWidth = clampedWidth;
-        });
-        
-        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-        return { refrigerator: newFridge, ...historyUpdate };
+        // Add the bottom item's width (stacked items don't take horizontal space)
+        return sum + bottomItem.width;
+      }, 0);
+      
+      // CRITICAL FIX: Account for 1px gaps between OTHER stacks (excluding the selected one)
+      // We need to count gaps between OTHER stacks (excluding the selected one)
+      // Example: If there are 3 total stacks and we're editing one:
+      //   - Other stacks: 2
+      //   - Gaps between other stacks: 2 - 1 = 1px
+      const otherStacksCount = row.stacks.filter(stack => !stack.some(stackItem => stackItem.id === itemId)).length;
+      const gapWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
+      
+      const availableWidth = row.capacity - usedWidth - gapWidth;
+      
+      // Clamp to min/max (min: 25mm, max: available space)
+      const MIN_WIDTH_MM = 25;
+      const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
+      const MAX_WIDTH = availableWidth;
+      
+      const newWidth = Math.round(newWidthMM * PIXELS_PER_MM);
+      const clampedWidth = Math.max(MIN_WIDTH, Math.min(newWidth, MAX_WIDTH));
+      const clampedWidthMM = clampedWidth / PIXELS_PER_MM;
+      
+      // If no change, don't update
+      if (clampedWidth === item.width) {
+        return;
+      }
+      
+      // Update item width
+      const newFridge = produce(currentFridge, draft => {
+        const targetItem = draft[location.rowId].stacks[location.stackIndex][location.itemIndex];
+        targetItem.width = clampedWidth;
+        targetItem.widthMM = clampedWidthMM;
+        targetItem.customWidth = clampedWidth;
       });
+      
+      actions._updateRefrigeratorData(newFridge, doorId);
     },
       // ========================================
     // Persistence Actions
