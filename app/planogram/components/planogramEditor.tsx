@@ -5,6 +5,7 @@ import { usePlanogramStore } from '@/lib/store';
 import { Sku, Refrigerator, Item, LayoutData, DoorConfig } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
+import { MultiDoorRefrigerator } from './MultiDoorRefrigerator';
 import { PropertiesPanelMemo as PropertiesPanel } from './PropertiesPanel';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -594,9 +595,7 @@ export function PlanogramEditor({
       const activeId = active.id as string;
       const overId = over.id as string;
       const overType = over.data.current?.type;
-      const activeType = active.data.current?.type;
-
-      if (activeType === 'sku' || interactionMode === 'reorder') {
+      const activeType = active.data.current?.type;      if (activeType === 'sku' || interactionMode === 'reorder') {
         let overRowId: string | undefined;
         let overDoorId: string | undefined;
         let stackIndex: number | undefined;
@@ -606,6 +605,8 @@ export function PlanogramEditor({
           overDoorId = over.data.current?.doorId;
           overRowId = over.data.current?.rowId || overId;
           stackIndex = over.data.current?.items?.length || 0;
+          
+          console.log('🎯 DragOver ROW:', { overType, overDoorId, overRowId, stackIndex, overData: over.data.current });
         } else if (overType === 'stack') {
           const location = findStackLocation(overId);
           if (location) {
@@ -613,10 +614,12 @@ export function PlanogramEditor({
             overRowId = location.rowId;
             stackIndex = location.stackIndex;
           }
+          console.log('🎯 DragOver STACK:', { overType, overDoorId, overRowId, stackIndex, location });
         }
 
         if (overRowId && stackIndex !== undefined) {
           newDropIndicator = { type: 'reorder', targetId: activeId, targetRowId: overRowId, targetDoorId: overDoorId, index: stackIndex };
+          console.log('✅ Drop indicator set:', newDropIndicator);
         }
       } else if (interactionMode === 'stack') {
         const isStackingPossible = dragValidation?.validStackTargetIds.has(overId);
@@ -838,7 +841,7 @@ export function PlanogramEditor({
               <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
               <ModeToggle mode={interactionMode} setMode={handleModeChange} />
             </div>            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
-              <RefrigeratorComponent
+              <MultiDoorRefrigerator
                 dragValidation={dragValidation}
                 dropIndicator={dropIndicator}
                 conflictIds={[

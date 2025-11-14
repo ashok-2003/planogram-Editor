@@ -456,45 +456,44 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
         });        toast.success('Item replaced successfully!');
         const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-        return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
-      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
-        const { findStackLocation, actions } = get();
+        return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
+        const { actions } = get();
         
-        // Use provided doorId, or try to find it, or default to door-1
-        const finalDoorId = doorId || findStackLocation(targetRowId)?.doorId || 'door-1';
+        // Use provided doorId, or default to door-1
+        const finalDoorId = doorId || 'door-1';
         
         console.log('🔧 addItemFromSku called:', { sku: sku.skuId, targetRowId, targetStackIndex, doorId, finalDoorId });
         
-        set(state => {
-            const currentFridge = actions._getRefrigeratorData(finalDoorId);
-            console.log('📦 Current fridge data:', { doorId: finalDoorId, hasRow: !!currentFridge[targetRowId], rowKeys: Object.keys(currentFridge) });
-            
-            const targetRow = currentFridge[targetRowId];
-            if(!targetRow) {
-              console.log('❌ Target row not found!', { targetRowId, availableRows: Object.keys(currentFridge) });
-              return state;
-            }
-            
-            // NEW: For BLANK spaces, set height to match row's maxHeight
-            const newItem: Item = { 
-              ...sku, 
-              id: generateUniqueId(sku.skuId),
-              // Auto-fill height for blank spaces
-              height: sku.productType === 'BLANK' ? targetRow.maxHeight : sku.height,
-              heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
-              widthMM: sku.widthMM,
-              customWidth: sku.productType === 'BLANK' ? sku.width : undefined
-            };              const newFridge = produce(currentFridge, draft => {
-              if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
-                draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);              } else {
-                draft[targetRowId].stacks.push([newItem]);
-              }
-            });
-            
-            console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: newFridge[targetRowId].stacks.length });
-            actions._updateRefrigeratorData(newFridge, finalDoorId);
-            return state;
+        const currentFridge = actions._getRefrigeratorData(finalDoorId);
+        console.log('📦 Current fridge data:', { doorId: finalDoorId, hasRow: !!currentFridge[targetRowId], rowKeys: Object.keys(currentFridge) });
+        
+        const targetRow = currentFridge[targetRowId];
+        if(!targetRow) {
+          console.log('❌ Target row not found!', { targetRowId, availableRows: Object.keys(currentFridge) });
+          return;
+        }
+        
+        // NEW: For BLANK spaces, set height to match row's maxHeight
+        const newItem: Item = { 
+          ...sku, 
+          id: generateUniqueId(sku.skuId),
+          // Auto-fill height for blank spaces
+          height: sku.productType === 'BLANK' ? targetRow.maxHeight : sku.height,
+          heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
+          widthMM: sku.widthMM,
+          customWidth: sku.productType === 'BLANK' ? sku.width : undefined
+        };
+        
+        const newFridge = produce(currentFridge, draft => {
+          if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
+            draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);
+          } else {
+            draft[targetRowId].stacks.push([newItem]);
+          }
         });
+        
+        console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: newFridge[targetRowId].stacks.length });
+        actions._updateRefrigeratorData(newFridge, finalDoorId);
     },moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
         set(state => {
             const { findStackLocation, actions, isMultiDoor } = get();
