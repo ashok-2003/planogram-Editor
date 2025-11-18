@@ -4,7 +4,7 @@ import {
   generateSectionPolygon,
   scaleBackendBoundingBoxes
 } from './bounding-box-utils';
-import { PIXEL_RATIO } from './config';
+import { PIXEL_RATIO, DOOR_GAP, HEADER_HEIGHT, GRILLE_HEIGHT, FRAME_BORDER } from './config';
 import { getDoorXOffset, getDoorConfigs } from './multi-door-utils';
 
 // Re-export for convenience
@@ -261,13 +261,16 @@ export function convertFrontendToBackend(
 export function convertMultiDoorFrontendToBackend(
   refrigerators: MultiDoorRefrigerator,
   doorConfigs: DoorConfig[],
-  headerHeight: number = 100,
-  grilleHeight: number = 90,
-  frameBorder: number = 16
+  headerHeight: number = HEADER_HEIGHT,
+  grilleHeight: number = GRILLE_HEIGHT,
+  frameBorder: number = FRAME_BORDER
 ): BackendOutput {
   
-  // Calculate total dimensions
-  const totalWidth = doorConfigs.reduce((sum, door) => sum + door.width, 0) + (frameBorder * (doorConfigs.length + 1));
+  // Calculate total dimensions with door gaps
+  // Formula: sum of door widths + borders around each door + gaps between doors
+  const totalWidth = doorConfigs.reduce((sum, door, index) => {
+    return sum + door.width + (frameBorder * 2) + (index > 0 ? DOOR_GAP : 0);
+  }, 0);
   const totalHeight = doorConfigs[0].height + headerHeight + grilleHeight + (frameBorder * 2);
   
   // Initialize backend structure

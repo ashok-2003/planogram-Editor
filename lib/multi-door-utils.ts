@@ -6,6 +6,7 @@
  */
 
 import { LayoutData, Refrigerator, MultiDoorRefrigerator, DoorConfig } from './types';
+import { DOOR_GAP, HEADER_HEIGHT, GRILLE_HEIGHT, FRAME_BORDER } from './config';
 
 /**
  * Checks if a layout is multi-door
@@ -71,26 +72,23 @@ export function getDoorConfigs(layout: LayoutData): DoorConfig[] {
 }
 
 /**
- * Calculates the total width of all doors including frames
- * Frame borders: 16px on each side of a door, so 32px per door + 16px on each end
- * Total = door widths + (doorCount + 1) * 16px
+ * Calculates the total width of all doors including frames and gaps
+ * Formula: sum of (door width + frame borders on both sides) + gaps between doors
  */
 export function getTotalWidth(doorConfigs: DoorConfig[]): number {
-  const FRAME_BORDER = 16;
-  const doorWidths = doorConfigs.reduce((sum, door) => sum + door.width, 0);
-  const frameWidth = (doorConfigs.length + 1) * FRAME_BORDER;
-  return doorWidths + frameWidth;
+  const totalDoorAndFrameWidth = doorConfigs.reduce((sum, door) => 
+    sum + door.width + (FRAME_BORDER * 2), 
+    0
+  );
+  const totalGaps = (doorConfigs.length - 1) * DOOR_GAP;
+  return totalDoorAndFrameWidth + totalGaps;
 }
 
 /**
  * Calculates the total height (all doors should have the same height)
- * Height includes header (80px), grille (70px), and frame borders (16px on each end)
+ * Height includes header, grille, content, and frame borders
  */
 export function getTotalHeight(doorConfigs: DoorConfig[]): number {
-  const FRAME_BORDER = 16;
-  const HEADER_HEIGHT = 80;
-  const GRILLE_HEIGHT = 70;
-  
   // All doors should have the same height - use the first door's height
   const contentHeight = doorConfigs[0].height;
   return contentHeight + HEADER_HEIGHT + GRILLE_HEIGHT + (FRAME_BORDER * 2);
@@ -98,22 +96,25 @@ export function getTotalHeight(doorConfigs: DoorConfig[]): number {
 
 /**
  * Calculates the X offset for a door's content (where products start)
- * Door-1: 16px (frame border)
- * Door-2: door1Width + 48px (door1 + 3 frame borders)
- * Door-3: door1Width + door2Width + 80px, etc.
+ * Accounts for: frame borders around each door + gaps between doors
+ * 
+ * Example with DOOR_GAP = 0 (flush):
+ * Door-1: FRAME_BORDER (left frame)
+ * Door-2: door1Width + (FRAME_BORDER * 3) (door1 + its frames + door2's left frame)
+ * 
+ * Example with DOOR_GAP = 10px:
+ * Door-1: FRAME_BORDER
+ * Door-2: door1Width + (FRAME_BORDER * 3) + DOOR_GAP
  */
 export function getDoorXOffset(doorConfigs: DoorConfig[], doorIndex: number): number {
-  const FRAME_BORDER = 16;
-  
   if (doorIndex === 0) {
     return FRAME_BORDER;
   }
   
   let offset = FRAME_BORDER; // Initial left frame
   for (let i = 0; i < doorIndex; i++) {
-    offset += doorConfigs[i].width + (FRAME_BORDER * 2); // Add door width + its left and right frames
+    offset += doorConfigs[i].width + (FRAME_BORDER * 2) + DOOR_GAP; // Add previous door + frames + gap
   }
-  offset += FRAME_BORDER; // Add the current door's left frame
   
   return offset;
 }

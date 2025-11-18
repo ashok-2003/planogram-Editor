@@ -4,6 +4,7 @@ import { usePlanogramStore } from '@/lib/store';
 import { RefrigeratorComponent } from './Refrigerator';
 import { DropIndicator, DragValidation } from './planogramEditor';
 import { layouts } from '@/lib/planogram-data';
+import { DOOR_GAP } from '@/lib/config';
 
 interface MultiDoorRefrigeratorProps {
   dropIndicator: DropIndicator;
@@ -56,21 +57,17 @@ export function MultiDoorRefrigerator({
       />
     );
   }
-
   // Multi-door mode - render multiple refrigerators side-by-side
   return (
-    <div className="flex gap-8 items-start">
+    <div 
+      className="flex items-start" 
+      style={{ gap: `${DOOR_GAP}px` }}
+    >
       {doorIds.map((doorId, index) => {
         const doorConfig = layoutData?.doors?.[index];
         
         return (
-          <div key={doorId} className="flex flex-col gap-2">            {/* Door Label */}
-            <div className="text-center">
-              <span className="text-sm font-semibold text-gray-700 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
-                {doorId.replace('-', ' ').toUpperCase()}
-              </span>
-            </div>
-            
+          <div key={doorId} className="flex flex-col">
             {/* Refrigerator Door */}
             <RefrigeratorComponent
               doorId={doorId}
