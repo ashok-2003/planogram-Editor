@@ -53,7 +53,7 @@ export function generateBoundingBox(
   // X offset: frame border on left side
   // Y offset: frame border on top + header height
   const offsetX = frameBorder;
-  const offsetY = frameBorder + headerHeight+ 10;
+  const offsetY = frameBorder + headerHeight+ 10; // +10 is intenstially added as the shelfwidht each are thick two pixels so it make the bounding box more accurate 
     // CRITICAL FIX: Use floor/ceil to prevent rounding errors
   // - Floor for top/left edges: ensures box doesn't go too high/left
   // - Ceil for bottom/right edges: ensures box covers the full item
