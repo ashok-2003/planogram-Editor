@@ -454,28 +454,26 @@ export function PlanogramEditor({
   );  // Memoize expensive conflict detection computation
   useEffect(() => {
     if (isRulesEnabled) {
-      if (isMultiDoor && refrigerators && Object.keys(refrigerators).length > 0) {
-        const conflicts = findConflicts(refrigerators['door-1'] || {});
-        // For now, only check door-1. Full multi-door conflict detection would iterate all doors
-        setConflictIds(conflicts);
-      } else if (refrigerator && Object.keys(refrigerator).length > 0) {
-        const conflicts = findConflicts(refrigerator);
+      if (refrigerators && Object.keys(refrigerators).length > 0) {
+        // Check all doors for conflicts
+        const conflicts = findConflicts(refrigerators);
         setConflictIds(conflicts);
       }
     } else {
       setConflictIds([]);
     }
-  }, [refrigerator, isRulesEnabled]);
+  }, [refrigerators, isRulesEnabled]);
 
   // Dimension validation conflict detection
   useEffect(() => {
-    if (refrigerator && Object.keys(refrigerator).length > 0 && isDimensionValidationEnabled) {
-      const dimensionConflicts = findDimensionConflicts(refrigerator);
+    if (refrigerators && Object.keys(refrigerators).length > 0 && isDimensionValidationEnabled) {
+      // Check all doors for dimension conflicts
+      const dimensionConflicts = findDimensionConflicts(refrigerators);
       setDimensionConflictIds(dimensionConflicts);
     } else if (!isDimensionValidationEnabled) {
       setDimensionConflictIds([]);
     }
-  }, [refrigerator, isDimensionValidationEnabled]);
+  }, [refrigerators, isDimensionValidationEnabled]);
 
   // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
@@ -528,26 +526,33 @@ export function PlanogramEditor({
         setActiveItem(draggedItem);
       }
     }    if (draggedItem) {
+      // Determine which door to validate against
+      // If dragging an existing item, use its door. If dragging from palette, use door-1 as default
+      let doorIdForValidation = 'door-1';
+      
+      if (activeData?.type === 'stack') {
+        // Item from refrigerator - find its door
+        const location = findStackLocation(active.id as string);
+        if (location) {
+          doorIdForValidation = location.doorId;
+        }
+      }
+      
       console.log('🎯 DRAG START DEBUG:', {
         isMultiDoor,
-        refrigeratorKeys: Object.keys(refrigerator),
+        doorIdForValidation,
         refrigeratorsKeys: Object.keys(refrigerators),
         draggedItem: draggedItem.skuId
       });
       
-      // CRITICAL FIX: In multi-door mode, we need to validate against ALL doors
-      // For simplicity, we'll merge all doors' rows or validate against door-1
-      // Better approach: validate against the door we're hovering over (but we don't know yet at drag start)
-      const refrigeratorForValidation = isMultiDoor 
-        ? (refrigerators['door-1'] || refrigerator) 
-        : refrigerator;
-      
+      // Run validation for the specific door context
       const validationResult = runValidation({
         draggedItem,
         draggedEntityHeight,
         isSingleItemStackable,
         activeDragId: active.id as string,
-        refrigerator: refrigeratorForValidation,
+        refrigerators,
+        doorId: doorIdForValidation,
         findStackLocation,
         isRulesEnabled,
       });
@@ -555,7 +560,7 @@ export function PlanogramEditor({
       console.log('📋 VALIDATION RESULT:', {
         validRowIds: Array.from(validationResult?.validRowIds || []),
         validStackTargetIds: Array.from(validationResult?.validStackTargetIds || []),
-        usingRefrigerator: isMultiDoor ? 'door-1' : 'single'
+        doorId: doorIdForValidation
       });
       
       setDragValidation(validationResult);

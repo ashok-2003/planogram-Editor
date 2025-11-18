@@ -7,101 +7,115 @@ interface ValidationPayload {
   draggedEntityHeight: number;
   isSingleItemStackable: boolean;
   activeDragId: string;
-  refrigerator: Refrigerator;
-  findStackLocation: (itemId: string) => { rowId: string; stackIndex: number } | null;
+  refrigerators: MultiDoorRefrigerator;
+  doorId: string; // Which door context to validate in
+  findStackLocation: (itemId: string) => { doorId: string; rowId: string; stackIndex: number; itemIndex: number } | null;
   isRulesEnabled: boolean; // To respect the toggle for business rules only
 }
 
 /**
- * Iterates through a refrigerator layout to find all items that violate shelf rules.
- * @param refrigerator The current state of the refrigerator.
+ * Iterates through a multi-door refrigerator layout to find all items that violate shelf rules.
+ * Checks all doors and aggregates conflicts across the entire refrigerator.
+ * @param refrigerators The current state of all refrigerator doors.
  * @returns An array of item IDs that are in conflict with the rules.
  */
-export function findConflicts(refrigerator: Refrigerator): string[] {
+export function findConflicts(refrigerators: MultiDoorRefrigerator): string[] {
   const conflictIds: string[] = [];
 
-  for (const rowId in refrigerator) {
-    const row = refrigerator[rowId];
-    for (const stack of row.stacks) {
-      const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
-      if (stackHeight > row.maxHeight) {
-        stack.forEach(item => conflictIds.push(item.id));
-      }
+  // Iterate through all doors
+  for (const doorId in refrigerators) {
+    const refrigerator = refrigerators[doorId];
+    
+    for (const rowId in refrigerator) {
+      const row = refrigerator[rowId];
+      for (const stack of row.stacks) {
+        const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+        if (stackHeight > row.maxHeight) {
+          stack.forEach(item => conflictIds.push(item.id));
+        }
 
-      for (const item of stack) {
-        // A "BLANK" item can never be in conflict with placement rules.
-        if (item.productType === 'BLANK') continue;
-        
-        if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(item.productType)) {
-          if (!conflictIds.includes(item.id)) {
-            conflictIds.push(item.id);
+        for (const item of stack) {
+          // A "BLANK" item can never be in conflict with placement rules.
+          if (item.productType === 'BLANK') continue;
+          
+          if (row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(item.productType)) {
+            if (!conflictIds.includes(item.id)) {
+              conflictIds.push(item.id);
+            }
           }
         }
       }
     }
   }
+  
   return conflictIds;
 }
 
 /**
- * Iterates through a refrigerator layout to find all items that violate dimensional constraints.
+ * Iterates through a multi-door refrigerator layout to find all items that violate dimensional constraints.
  * This includes:
  * 1. Stack height exceeding shelf max height
  * 2. Items overflowing the shelf/refrigerator width capacity
- * @param refrigerator The current state of the refrigerator.
+ * Checks all doors and aggregates conflicts across the entire refrigerator.
+ * @param refrigerators The current state of all refrigerator doors.
  * @returns An array of item IDs that are in conflict with dimensional rules.
  */
-export function findDimensionConflicts(refrigerator: Refrigerator): string[] {
+export function findDimensionConflicts(refrigerators: MultiDoorRefrigerator): string[] {
   const conflictIds: string[] = [];
 
-  for (const rowId in refrigerator) {
-    const row = refrigerator[rowId];
+  // Iterate through all doors
+  for (const doorId in refrigerators) {
+    const refrigerator = refrigerators[doorId];
     
-    // Check 1: Height violations (stack too tall)
-    for (const stack of row.stacks) {
-      const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
-      if (stackHeight > row.maxHeight) {
-        stack.forEach(item => {
-          if (!conflictIds.includes(item.id)) {
-            conflictIds.push(item.id);
-          }
-        });
-      }
-    }
-      // Check 2: Width overflow (items exceed shelf capacity)
-    const getStackWidth = (stack: Item[]) => 
-      stack.length === 0 ? 0 : Math.max(...stack.map(item => item.width));
-    
-    const totalWidth = row.stacks.reduce((sum, stack) => sum + getStackWidth(stack), 0);
-    const gapWidth = Math.max(0, row.stacks.length - 1); // 1px gap between stacks
-    const totalWidthWithGaps = totalWidth + gapWidth;
-    
-    // If total width exceeds capacity, mark items as conflicts (rightmost items)
-    if (totalWidthWithGaps > row.capacity) {
-      // Calculate width from left to right to find where overflow starts
-      let accumulatedWidth = 0;
-      const overflowAmount = totalWidthWithGaps - row.capacity;
+    for (const rowId in refrigerator) {
+      const row = refrigerator[rowId];
       
-      for (let i = 0; i < row.stacks.length; i++) {
-        const stackWidth = getStackWidth(row.stacks[i]);
-        const nextAccumulatedWidth = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0); // Add gap if not first stack
-        
-        // Check if adding this stack would cause us to exceed the "acceptable" width
-        // The acceptable width is capacity, so anything beyond that is overflow
-        const widthAfterThisStack = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0);
-        const widthBeforeThisStack = accumulatedWidth;
-        
-        // If we're in the overflow region (beyond what fits in capacity)
-        if (widthAfterThisStack > row.capacity) {
-          // Mark all items in this stack as conflicting
-          row.stacks[i].forEach(item => {
+      // Check 1: Height violations (stack too tall)
+      for (const stack of row.stacks) {
+        const stackHeight = stack.reduce((sum, item) => sum + item.height, 0);
+        if (stackHeight > row.maxHeight) {
+          stack.forEach(item => {
             if (!conflictIds.includes(item.id)) {
               conflictIds.push(item.id);
             }
           });
         }
+      }
+        // Check 2: Width overflow (items exceed shelf capacity)
+      const getStackWidth = (stack: Item[]) => 
+        stack.length === 0 ? 0 : Math.max(...stack.map(item => item.width));
+      
+      const totalWidth = row.stacks.reduce((sum, stack) => sum + getStackWidth(stack), 0);
+      const gapWidth = Math.max(0, row.stacks.length - 1); // 1px gap between stacks
+      const totalWidthWithGaps = totalWidth + gapWidth;
+      
+      // If total width exceeds capacity, mark items as conflicts (rightmost items)
+      if (totalWidthWithGaps > row.capacity) {
+        // Calculate width from left to right to find where overflow starts
+        let accumulatedWidth = 0;
+        const overflowAmount = totalWidthWithGaps - row.capacity;
         
-        accumulatedWidth = nextAccumulatedWidth;
+        for (let i = 0; i < row.stacks.length; i++) {
+          const stackWidth = getStackWidth(row.stacks[i]);
+          const nextAccumulatedWidth = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0); // Add gap if not first stack
+          
+          // Check if adding this stack would cause us to exceed the "acceptable" width
+          // The acceptable width is capacity, so anything beyond that is overflow
+          const widthAfterThisStack = accumulatedWidth + stackWidth + (i > 0 ? 1 : 0);
+          const widthBeforeThisStack = accumulatedWidth;
+          
+          // If we're in the overflow region (beyond what fits in capacity)
+          if (widthAfterThisStack > row.capacity) {
+            // Mark all items in this stack as conflicting
+            row.stacks[i].forEach(item => {
+              if (!conflictIds.includes(item.id)) {
+                conflictIds.push(item.id);
+              }
+            });
+          }
+          
+          accumulatedWidth = nextAccumulatedWidth;
+        }
       }
     }
   }
@@ -112,6 +126,7 @@ export function findDimensionConflicts(refrigerator: Refrigerator): string[] {
 /**
  * A centralized function to run all business logic checks when a drag starts.
  * It determines which rows and stacks are valid drop targets based on a set of rules.
+ * Validates within the context of a specific door.
  * @returns A DragValidation object with sets of valid row and stack IDs.
  */
 export function runValidation({
@@ -119,7 +134,8 @@ export function runValidation({
   draggedEntityHeight,
   isSingleItemStackable,
   activeDragId,
-  refrigerator,
+  refrigerators,
+  doorId,
   findStackLocation,
   isRulesEnabled,
 }: ValidationPayload): DragValidation {
@@ -128,6 +144,12 @@ export function runValidation({
 
   const draggedItemWidth = draggedItem.width;
   const originLocation = findStackLocation(activeDragId);
+  
+  // Get the refrigerator for the specified door
+  const refrigerator = refrigerators[doorId];
+  if (!refrigerator) {
+    return { validRowIds, validStackTargetIds };
+  }
 
   // --- 1. VALIDATION FOR RE-ORDERING / MOVING ---
   for (const rowId in refrigerator) {
