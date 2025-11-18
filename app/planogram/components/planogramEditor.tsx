@@ -719,10 +719,10 @@ export function PlanogramEditor({
           </div>
           <div className="flex gap-4 h-14 items-center">
             {/* Rule Toggle - FIXED   Hidden for now  */}
-            {/* <RuleToggle
+            <RuleToggle
               isEnabled={isRulesEnabled}
               onToggle={setIsRulesEnabled}
-            /> */}
+            />
 
             {/* Dimension Validation Toggle */}
 
