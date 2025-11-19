@@ -153,7 +153,7 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
     <div className="bg-gray-200/70 rounded-lg shadow-inner mt-8">
       <div className="p-3 border-b border-gray-700 flex justify-between items-center">
         <div>
-          <h4 className="text-lg font-semibold">Backend Format (Transformed & Scaled)</h4>
+          <h4 className="text-lg font-semibold">ShelfScan Compatible Data</h4>
           <p className="text-xs text-gray-500 mt-1">
             Converted with bounding boxes scaled by {PIXEL_RATIO}x for ML/CV
             {isCalculating && <span className="ml-2 text-blue-600 font-semibold">⟳ Calculating...</span>}
