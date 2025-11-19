@@ -48,8 +48,8 @@ interface PlanogramState {
     
     // NEW: Update blank space width
     updateBlankWidth: (itemId: string, newWidthMM: number) => void;    // Persistence actions
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit?: boolean, layoutData?: any) => void;
-    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => void;
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator | MultiDoorRefrigerator, forceInit?: boolean, layoutData?: any) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator | MultiDoorRefrigerator, layoutData?: any) => void;
     restoreDraft: () => void;
     dismissDraft: () => void;
     clearDraft: () => void;
@@ -746,8 +746,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
     },// ========================================
     // Persistence Actions
     // ========================================
-    
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit = false, layoutData?: any) => {
+      initializeLayout: (layoutId: string, initialLayout: Refrigerator | MultiDoorRefrigerator, forceInit = false, layoutData?: any) => {
       // If forceInit is true (e.g., from AI import), skip draft check and use provided layout
       if (forceInit) {
         const normalizedLayout = normalizeToMultiDoor(initialLayout);
@@ -817,7 +816,7 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           selectedItemId: null
         });
       }
-    },    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => {
+    },    switchLayout: (layoutId: string, newLayout: Refrigerator | MultiDoorRefrigerator, layoutData?: any) => {
       const state = get();
       
       // Save current layout first - always save as MultiDoorRefrigerator format

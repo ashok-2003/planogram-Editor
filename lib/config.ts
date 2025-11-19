@@ -15,3 +15,8 @@ export const HEADER_HEIGHT = 100;       // Height of top header section in pixel
 export const GRILLE_HEIGHT = 90;        // Height of bottom grille section in pixels
 export const FRAME_BORDER = 16;         // Border width around each door in pixels
 export const DOOR_DIVIDER_WIDTH = 0;    // Optional divider between doors (0 = none)
+
+/**
+ * Feature flags for AI backend detection
+ */
+export const ENABLE_MULTI_DOOR_DETECTION = true;  // Enable detection of Door-2 from AI backend

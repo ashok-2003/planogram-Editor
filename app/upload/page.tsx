@@ -4,10 +4,12 @@ import { useState, useRef, useEffect, DragEvent } from 'react'; // Updated React
 import { PlanogramEditor } from '@/app/planogram/components/planogramEditor';
 // import { Spinner } from '@/app/planogram/components/Skeletons'; // No longer needed
 import { Button } from '@/components/ui/button';
-import { Refrigerator, Sku, LayoutData } from '@/lib/types';
+import { Refrigerator, Sku, LayoutData, MultiDoorRefrigerator } from '@/lib/types';
 // Import the AI data type
 import {
     convertBackendToFrontend,
+    convertMultiDoorBackendToFrontend,
+    isMultiDoorAIData,
     AIBackendData,
 } from '@/lib/backend-to-frontend';
 import { availableSkus } from '@/lib/planogram-data';
@@ -299,10 +301,33 @@ function LayoutPicker({
                                 <p className="font-semibold">
                                     {layout.name}
                                     {isNoMatch && id === 'g-26c' && ' (Recommended)'}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    {layout.layout ? Object.keys(layout.layout).length : 0} Shelves | {layout.width}px
-                                    wide
+                                </p>                                <p className="text-xs text-gray-500">
+                                    {(() => {
+                                        // Calculate shelf count: multi-door or single-door
+                                        let shelfCount = 0;
+                                        let doorCount = 1;
+                                        let widthInfo = 'Unknown';
+                                        
+                                        if (layout.doors && layout.doors.length > 0) {
+                                            // Multi-door: sum shelves across all doors
+                                            doorCount = layout.doors.length;
+                                            shelfCount = layout.doors.reduce((sum, door) => {
+                                                return sum + (door.layout ? Object.keys(door.layout).length : 0);
+                                            }, 0);
+                                            // Calculate total width from all doors
+                                            const totalWidth = layout.doors.reduce((sum, door) => {
+                                                return sum + (door.width || 0);
+                                            }, 0);
+                                            widthInfo = totalWidth > 0 ? `${totalWidth}px` : (layout.width ? `${layout.width}px` : 'Unknown');
+                                        } else if (layout.layout) {
+                                            // Single-door: count rows in layout
+                                            shelfCount = Object.keys(layout.layout).length;
+                                            widthInfo = layout.width ? `${layout.width}px` : 'Unknown';
+                                        }
+                                        
+                                        const doorInfo = doorCount > 1 ? ` | ${doorCount} Doors` : '';
+                                        return `${shelfCount} Shelves${doorInfo} | ${widthInfo} wide`;
+                                    })()}
                                 </p>
                             </div>
                         </Button>
@@ -314,14 +339,17 @@ function LayoutPicker({
 }
 
 // --- UPDATED: Main Page Component ---
-export default function UploadPlanogramPage() {
-    // const [isLoading, setIsLoading] = useState(false); // <-- REPLACED
+export default function UploadPlanogramPage() {    // const [isLoading, setIsLoading] = useState(false); // <-- REPLACED
     const [uploadStep, setUploadStep] = useState<UploadStep>('idle'); // <-- NEW STATE
     const [error, setError] = useState<string | null>(null);
     const [importedLayout, setImportedLayout] = useState<Refrigerator | null>(
         null
     );
+    const [importedMultiDoorLayout, setImportedMultiDoorLayout] = useState<MultiDoorRefrigerator | null>(
+        null
+    );
     const [detectedLayoutId, setDetectedLayoutId] = useState<string | null>(null); // <-- NEW: Store the detected layout ID
+    const [isMultiDoor, setIsMultiDoor] = useState<boolean>(false); // <-- NEW: Track if multi-door
 
     // --- NEW STATE for layout picking ---
     const [aiData, setAiData] = useState<AIBackendData | null>(null);
@@ -330,8 +358,7 @@ export default function UploadPlanogramPage() {
     >([]);
     const [showLayoutPicker, setShowLayoutPicker] = useState(false);
     const [detectedShelfCount, setDetectedShelfCount] = useState<number>(0);
-    const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);
-    /**
+    const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);    /**
      * Finishes the conversion process once a layout is chosen.
      */
     const processConversion = (
@@ -341,23 +368,49 @@ export default function UploadPlanogramPage() {
     ) => {
         toast.info(`Building planogram with ${chosenLayout.name}...`);
         try {
-            // --- Step 3: Convert AI data to Frontend state ---
-            const convertedLayout = convertBackendToFrontend(
-                data,
-                availableSkus,
-                chosenLayout // Use the chosen layout
-            );
+            // --- Step 3: Detect if multi-door and convert accordingly ---
+            const isMultiDoorData = isMultiDoorAIData(data);
+            
+            if (isMultiDoorData) {
+                console.log('[Upload] Multi-door AI data detected, using multi-door converter');
+                
+                // Ensure layout has door configurations
+                if (!chosenLayout.doors || chosenLayout.doors.length === 0) {
+                    throw new Error('Selected layout does not support multi-door configuration');
+                }
+                
+                const convertedMultiDoorLayout = convertMultiDoorBackendToFrontend(
+                    data,
+                    availableSkus,
+                    chosenLayout
+                );
+                
+                // Store as MultiDoorRefrigerator - the store will handle it via normalizeToMultiDoor
+                setImportedMultiDoorLayout(convertedMultiDoorLayout);
+                setImportedLayout(null);
+                setIsMultiDoor(true);
+            } else {
+                console.log('[Upload] Single-door AI data detected, using single-door converter');
+                
+                const convertedLayout = convertBackendToFrontend(
+                    data,
+                    availableSkus,
+                    chosenLayout
+                );
+                
+                // Store as Refrigerator - the store will wrap it as { 'door-1': ... }
+                setImportedLayout(convertedLayout);
+                setImportedMultiDoorLayout(null);
+                setIsMultiDoor(false);
+            }
 
             // --- Step 4: Set the state with our new layout AND the detected layout ID ---
-            setImportedLayout(convertedLayout);
             setDetectedLayoutId(layoutId); // <-- Store the layout ID
-            // setIsLoading(false); // <-- REPLACED
-            setUploadStep('idle'); // <-- NEW
+            setUploadStep('idle');
         } catch (err: any) {
             console.error(err);
             setError('Failed to convert AI data. ' + err.message);
-            // setIsLoading(false); // <-- REPLACED
-            setUploadStep('idle'); // <-- NEW
+            setUploadStep('idle');
             toast.error('Failed to convert AI data.', { description: err.message });
         }
     };
@@ -447,36 +500,63 @@ export default function UploadPlanogramPage() {
             const fetchedAiData = await aiResponse.json();
 
             setUploadStep('complete'); // <-- NEW: Move to final step
-            toast.info('AI processing complete! Matching layout...');
-
-            // --- ADDED CONSOLE LOG ---
+            toast.info('AI processing complete! Matching layout...');            // --- ADDED CONSOLE LOG ---
             console.log('--- AI Data Received ---', fetchedAiData);
             setAiData(fetchedAiData); // Store AI data in state
-            // --- NEW LAYOUT MATCHING LOGIC ---
-            const shelfCount =
-                fetchedAiData.Cooler?.['Door-1']?.Sections?.length || 0;
-            if (shelfCount === 0) {
+            
+            // --- NEW LAYOUT MATCHING LOGIC (Multi-door aware) ---
+            const isMultiDoorData = isMultiDoorAIData(fetchedAiData);
+            
+            let totalShelfCount = 0;
+            
+            if (isMultiDoorData) {
+                // Calculate total shelf count across all doors
+                const door1Count = fetchedAiData.Cooler?.['Door-1']?.Sections?.length || 0;
+                const door2Count = fetchedAiData.Cooler?.['Door-2']?.Sections?.length || 0;
+                totalShelfCount = door1Count + door2Count;
+                
+                console.log(`[Layout Match] Multi-door detected: Door-1 has ${door1Count} shelves, Door-2 has ${door2Count} shelves. Total: ${totalShelfCount}`);
+            } else {
+                // Single door - count shelves in Door-1
+                totalShelfCount = fetchedAiData.Cooler?.['Door-1']?.Sections?.length || 0;
+                console.log(`[Layout Match] Single-door detected: ${totalShelfCount} shelves`);
+            }
+            
+            if (totalShelfCount === 0) {
                 throw new Error('AI did not detect any shelves in the image.');
             }
 
-            setDetectedShelfCount(shelfCount);            // Find matching layouts WITH their IDs
+            setDetectedShelfCount(totalShelfCount);
+            
+            // Find matching layouts WITH their IDs
             const matches: Array<{ id: string; layout: LayoutData }> = Object.entries(
                 availableLayoutsData
             )
-                .filter(([_, layout]) => layout.layout && Object.keys(layout.layout).length === shelfCount)
+                .filter(([_, layout]) => {
+                    // Check if layout supports multi-door (has doors array)
+                    if (layout.doors && layout.doors.length > 0) {
+                        // Multi-door layout: sum up shelves across all doors
+                        const layoutTotalShelves = layout.doors.reduce((sum, door) => {
+                            return sum + (door.layout ? Object.keys(door.layout).length : 0);
+                        }, 0);
+                        return layoutTotalShelves === totalShelfCount;
+                    } else if (layout.layout) {
+                        // Legacy single-door layout
+                        return Object.keys(layout.layout).length === totalShelfCount;
+                    }
+                    return false;
+                })
                 .map(([id, layout]) => ({ id, layout }));
 
             console.log(
-                `[Layout Match] AI has ${shelfCount} shelves. Found ${matches.length} matching layouts.`
-            );
-
-            if (matches.length === 0) {
+                `[Layout Match] AI has ${totalShelfCount} total shelves (${isMultiDoorData ? 'multi-door' : 'single-door'}). Found ${matches.length} matching layouts.`
+            );            if (matches.length === 0) {
                 // NO MATCH: Show all layouts and let user choose
                 const allLayouts = Object.entries(availableLayoutsData).map(
                     ([id, layout]) => ({ id, layout })
                 );
 
-                toast.warning(`No cooler configuration matches ${shelfCount} shelves.`, {
+                toast.warning(`No cooler configuration matches ${totalShelfCount} shelves.`, {
                     description: 'Please choose a cooler model to continue.',
                 });
 
@@ -510,12 +590,39 @@ export default function UploadPlanogramPage() {
         }
     };    // --- Conditional Rendering ---
     // Show editor *after* layout is successfully imported
-    if (importedLayout) {
-        const defaultLayout = availableLayoutsData['g-26c'].layout;
+    if (importedLayout || importedMultiDoorLayout) {
+        // Get default layout - try single-door first, then first door of multi-door layout
+        let defaultLayout = availableLayoutsData['g-26c']?.layout;
+        
+        // If g-26c doesn't have a single-door layout, use its first door
+        if (!defaultLayout && availableLayoutsData['g-26c']?.doors?.[0]?.layout) {
+            defaultLayout = availableLayoutsData['g-26c'].doors[0].layout;
+        }
+        
+        // If still no default, try to find any available single-door layout
         if (!defaultLayout) {
-            toast.error('Default layout not found');
+            for (const layoutId in availableLayoutsData) {
+                const layout = availableLayoutsData[layoutId];
+                if (layout.layout) {
+                    defaultLayout = layout.layout;
+                    console.log(`[Upload] Using fallback default layout: ${layoutId}`);
+                    break;
+                }
+                if (layout.doors?.[0]?.layout) {
+                    defaultLayout = layout.doors[0].layout;
+                    console.log(`[Upload] Using fallback default layout (first door): ${layoutId}`);
+                    break;
+                }
+            }
+        }
+        
+        if (!defaultLayout) {
+            toast.error('No valid default layout found in available layouts');
             return null;
         }
+        
+        // Pass the appropriate layout format - the store will normalize it
+        const layoutToImport = isMultiDoor ? importedMultiDoorLayout : importedLayout;
         
         return (
             <main className="w-full h-full">
@@ -524,7 +631,7 @@ export default function UploadPlanogramPage() {
                         initialSkus={availableSkus}
                         initialLayout={defaultLayout} // Base layout (will be overridden)
                         initialLayouts={availableLayoutsData}
-                        importedLayout={importedLayout} // Pass the new layout as a prop
+                        importedLayout={layoutToImport} // Pass either single-door or multi-door - store normalizes it
                         importedLayoutId={detectedLayoutId} // Pass the detected layout ID
                     />
                 </div>

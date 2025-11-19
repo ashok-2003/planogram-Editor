@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { Sku, Refrigerator, Item, LayoutData, DoorConfig } from '@/lib/types';
+import { Sku, Refrigerator, Item, LayoutData, DoorConfig, MultiDoorRefrigerator as MultiDoorRefrigeratorType } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
 import { MultiDoorRefrigerator } from './MultiDoorRefrigerator';
@@ -365,7 +365,7 @@ interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
   initialLayouts: { [key: string]: LayoutData };
-  importedLayout?: Refrigerator | null;
+  importedLayout?: Refrigerator | MultiDoorRefrigeratorType | null;
   importedLayoutId?: string | null; // <-- NEW: The layout ID that was detected
 }
 
