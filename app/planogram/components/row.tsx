@@ -41,11 +41,15 @@ export const RowComponent = React.memo(function RowComponent({
           dropIndicator.targetDoorId === doorId,
     [dropIndicator, row.id, doorId]
   );
-
   const isDragging = !!dragValidation;
   const isValidRowTarget = useMemo(
-    () => isDragging && dragValidation?.validRowIds.has(row.id),
-    [isDragging, dragValidation, row.id]
+    () => {
+      if (!isDragging || !dragValidation) return false;
+      // Check for door-qualified row ID (e.g., "door-1:row-3")
+      const qualifiedRowId = doorId ? `${doorId}:${row.id}` : row.id;
+      return dragValidation.validRowIds.has(qualifiedRowId);
+    },
+    [isDragging, dragValidation, row.id, doorId]
   );
   
   const hasValidStackTargets = useMemo(

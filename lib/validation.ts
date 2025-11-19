@@ -179,12 +179,12 @@ export function runValidation({
     const gapWidthAfterMove = originLocation?.rowId === rowId 
       ? currentGapWidth // Same number of stacks (moving within row)
       : currentGapWidth + 1; // One more stack (moving from different row)
-    
-    // Check if there's enough capacity
+      // Check if there's enough capacity
     const totalWidthNeeded = widthWithoutActiveItem + draggedItemWidth + gapWidthAfterMove;
     if (totalWidthNeeded > row.capacity) continue;
     
-    validRowIds.add(rowId);
+    // Add door-qualified row ID to make it unique across doors
+    validRowIds.add(`${doorId}:${rowId}`);
   }
 
   // --- 2. VALIDATION FOR STACKING ---

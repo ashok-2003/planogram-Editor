@@ -522,48 +522,61 @@ export function PlanogramEditor({
       draggedItem = activeData.items[0];
       if (draggedItem) {
         draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
-        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
-        setActiveItem(draggedItem);
+        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;        setActiveItem(draggedItem);
       }
-    }    if (draggedItem) {
-      // Determine which door to validate against
-      // If dragging an existing item, use its door. If dragging from palette, use door-1 as default
-      let doorIdForValidation = 'door-1';
-      
-      if (activeData?.type === 'stack') {
-        // Item from refrigerator - find its door
-        const location = findStackLocation(active.id as string);
-        if (location) {
-          doorIdForValidation = location.doorId;
-        }
+    }
+    
+    if (draggedItem) {
+      // In multi-door setup, validate ALL doors and merge results
+      // In single-door setup, validate only that door
+      if (isMultiDoor) {
+        // Multi-door: Run validation for each door and merge results
+        const allDoorIds = Object.keys(refrigerators);
+        const mergedValidRowIds = new Set<string>();
+        const mergedValidStackTargetIds = new Set<string>();
+        
+        allDoorIds.forEach(doorId => {
+          const doorValidation = runValidation({
+            draggedItem,
+            draggedEntityHeight,
+            isSingleItemStackable,
+            activeDragId: active.id as string,
+            refrigerators,
+            doorId,
+            findStackLocation,
+            isRulesEnabled,
+          });
+          
+          // Merge results from this door
+          if (doorValidation) {
+            doorValidation.validRowIds.forEach(id => mergedValidRowIds.add(id));
+            doorValidation.validStackTargetIds.forEach(id => mergedValidStackTargetIds.add(id));
+          }
+        });
+        
+        const validationResult = {
+          validRowIds: mergedValidRowIds,
+          validStackTargetIds: mergedValidStackTargetIds
+        };
+        
+        setDragValidation(validationResult);
+        
+      } else {
+        // Single-door: Validate only the single door
+        const doorId = Object.keys(refrigerators)[0] || 'door-1';
+        const validationResult = runValidation({
+          draggedItem,
+          draggedEntityHeight,
+          isSingleItemStackable,
+          activeDragId: active.id as string,
+          refrigerators,
+          doorId,
+          findStackLocation,
+          isRulesEnabled,
+        });
+        
+        setDragValidation(validationResult);
       }
-      
-      console.log('🎯 DRAG START DEBUG:', {
-        isMultiDoor,
-        doorIdForValidation,
-        refrigeratorsKeys: Object.keys(refrigerators),
-        draggedItem: draggedItem.skuId
-      });
-      
-      // Run validation for the specific door context
-      const validationResult = runValidation({
-        draggedItem,
-        draggedEntityHeight,
-        isSingleItemStackable,
-        activeDragId: active.id as string,
-        refrigerators,
-        doorId: doorIdForValidation,
-        findStackLocation,
-        isRulesEnabled,
-      });
-      
-      console.log('📋 VALIDATION RESULT:', {
-        validRowIds: Array.from(validationResult?.validRowIds || []),
-        validStackTargetIds: Array.from(validationResult?.validStackTargetIds || []),
-        doorId: doorIdForValidation
-      });
-      
-      setDragValidation(validationResult);
     }
   }, [actions, refrigerator, refrigerators, isMultiDoor, findStackLocation, isRulesEnabled]);
   // OPTIMIZATION: Store previous drop indicator to prevent unnecessary updates
@@ -603,15 +616,11 @@ export function PlanogramEditor({
       const activeType = active.data.current?.type;      if (activeType === 'sku' || interactionMode === 'reorder') {
         let overRowId: string | undefined;
         let overDoorId: string | undefined;
-        let stackIndex: number | undefined;
-
-        if (overType === 'row') {
+        let stackIndex: number | undefined;        if (overType === 'row') {
           // Extract doorId and rowId from composite ID (e.g., "door-1:row-1")
           overDoorId = over.data.current?.doorId;
           overRowId = over.data.current?.rowId || overId;
           stackIndex = over.data.current?.items?.length || 0;
-          
-          console.log('🎯 DragOver ROW:', { overType, overDoorId, overRowId, stackIndex, overData: over.data.current });
         } else if (overType === 'stack') {
           const location = findStackLocation(overId);
           if (location) {
@@ -619,12 +628,10 @@ export function PlanogramEditor({
             overRowId = location.rowId;
             stackIndex = location.stackIndex;
           }
-          console.log('🎯 DragOver STACK:', { overType, overDoorId, overRowId, stackIndex, location });
         }
 
         if (overRowId && stackIndex !== undefined) {
           newDropIndicator = { type: 'reorder', targetId: activeId, targetRowId: overRowId, targetDoorId: overDoorId, index: stackIndex };
-          console.log('✅ Drop indicator set:', newDropIndicator);
         }
       } else if (interactionMode === 'stack') {
         const isStackingPossible = dragValidation?.validStackTargetIds.has(overId);
@@ -648,19 +655,14 @@ export function PlanogramEditor({
     const { active, over } = event;
     const activeType = active.data.current?.type;    if (activeType === 'sku') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
-        console.log('🔍 DROP DEBUG:', {
-          dropIndicator,
-          validRowIds: Array.from(dragValidation?.validRowIds || []),
-          hasValidation: !!dragValidation,
-          isValid: dragValidation?.validRowIds.has(dropIndicator.targetRowId)
-        });
+        // Build door-qualified row ID to match validation format
+        const qualifiedRowId = dropIndicator.targetDoorId 
+          ? `${dropIndicator.targetDoorId}:${dropIndicator.targetRowId}`
+          : dropIndicator.targetRowId;
         
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-          console.log('✅ Adding item from SKU');
+        if (dragValidation && dragValidation.validRowIds.has(qualifiedRowId)) {
           actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index, dropIndicator.targetDoorId);
           setInvalidModeAttempts(0);
-        } else {
-          console.log('❌ Validation failed');
         }
       }
     }else if (interactionMode === 'stack') {
@@ -673,10 +675,14 @@ export function PlanogramEditor({
         if (newAttemptCount >= 2) {
           setShowModePrompt(true);
         }
-      }
-    } else if (interactionMode === 'reorder') {
+      }    } else if (interactionMode === 'reorder') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+        // Build door-qualified row ID to match validation format
+        const qualifiedRowId = dropIndicator.targetDoorId 
+          ? `${dropIndicator.targetDoorId}:${dropIndicator.targetRowId}`
+          : dropIndicator.targetRowId;
+        
+        if (dragValidation && dragValidation.validRowIds.has(qualifiedRowId)) {
           const startLocation = findStackLocation(active.id as string);
           if (!startLocation || dropIndicator.index === undefined) return;
           
