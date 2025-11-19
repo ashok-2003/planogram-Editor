@@ -156,15 +156,25 @@ export function scaleBackendBoundingBoxes(
   // Deep clone to avoid mutating original data
   const scaledOutput: BackendOutput = JSON.parse(JSON.stringify(backendData));
   
-  // Scale all sections and products
-  scaledOutput.Cooler["Door-1"].Sections.forEach(section => {
-    // Scale section polygon if it exists
-    if (section.data && section.data.length > 0) {
-      section.data = scaleBoundingBox(section.data, pixelRatio);
+  // Scale all doors and their sections/products
+  Object.keys(scaledOutput.Cooler).forEach(doorKey => {
+    const door = scaledOutput.Cooler[doorKey];
+    
+    // Scale door polygon if it exists
+    if (door.data && door.data.length > 0) {
+      door.data = scaleBoundingBox(door.data, pixelRatio);
     }
     
-    // Scale all products in this section
-    section.products.forEach(product => scaleProduct(product, pixelRatio));
+    // Scale all sections in this door
+    door.Sections.forEach(section => {
+      // Scale section polygon if it exists
+      if (section.data && section.data.length > 0) {
+        section.data = scaleBoundingBox(section.data, pixelRatio);
+      }
+      
+      // Scale all products in this section
+      section.products.forEach(product => scaleProduct(product, pixelRatio));
+    });
   });
   
   // Scale dimensions

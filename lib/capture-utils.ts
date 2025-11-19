@@ -96,9 +96,17 @@ export async function captureElementAsImage(
 }
 
 /**
- * Copy element as image to clipboard
- * @param elementId - The ID of the element to capture
+ * Capture the entire refrigerator layout (single or multi-door) as an image
+ * Uses the 'refrigerator-layout' wrapper ID which works for both modes
+ * @param filename - The name of the downloaded file (without extension)
+ * @returns The actual captured dimensions (width, height) or null if failed
  */
+export async function captureRefrigeratorLayout(
+  filename: string = 'refrigerator-planogram'
+): Promise<{ width: number; height: number } | null> {
+  // Use the unified wrapper ID that works for both single and multi-door
+  return captureElementAsImage('refrigerator-layout', filename);
+}
 
 // clipboard feature is not required
 

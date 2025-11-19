@@ -56,10 +56,10 @@ export function MultiDoorRefrigerator({
         showBoundingBoxes={showBoundingBoxes}
       />
     );
-  }
-  // Multi-door mode - render multiple refrigerators side-by-side
+  }  // Multi-door mode - render multiple refrigerators side-by-side
   return (
     <div 
+      id="refrigerator-layout"
       className="flex items-start" 
       style={{ gap: `${DOOR_GAP}px` }}
     >
