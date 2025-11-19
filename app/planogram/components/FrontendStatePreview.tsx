@@ -1,29 +1,58 @@
 'use client';
 import { usePlanogramStore } from '@/lib/store';
-import { useMemo, useState, memo } from 'react';
+import { useMemo, useState, memo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
 export const FrontendStatePreview = memo(function FrontendStatePreview() {
-  // OPTIMIZATION: Subscribe to both historyIndex AND currentLayoutId to detect state changes
+  // Subscribe to both historyIndex AND currentLayoutId to detect state changes
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
   const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const [copied, setCopied] = useState(false);
+  const [formattedState, setFormattedState] = useState<string>('');
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Get the raw frontend state from the store
-  const frontendState = useMemo(() => {
-    const state = usePlanogramStore.getState();
-    return {
-      refrigerator: state.refrigerator,
-      refrigerators: state.refrigerators,
-      isMultiDoor: state.isMultiDoor,
-      currentLayoutId: state.currentLayoutId,
-      historyIndex: state.historyIndex,
-      historyLength: state.history.length,
-    };
+  // Get the refrigerators (multi-door) data - recalculates when state changes
+  const refrigerators = useMemo(() => {
+    return usePlanogramStore.getState().refrigerators;
   }, [historyIndex, currentLayoutId]);
 
-  // Format the frontend state as JSON
-  const formattedState = JSON.stringify(frontendState, null, 2);
+  // --- DEBOUNCED UPDATE: Format state after changes settle ---
+  useEffect(() => {
+    // Clear any pending update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    // Debounce formatting to avoid unnecessary work during rapid changes
+    updateTimeoutRef.current = setTimeout(() => {
+      const state = usePlanogramStore.getState();
+      
+      // Build clean frontend state object - only show relevant data
+      const frontendState = {
+        // Always show refrigerators (the current multi-door structure)
+        refrigerators: state.refrigerators,
+        
+        // Metadata
+        isMultiDoor: state.isMultiDoor,
+        currentLayoutId: state.currentLayoutId,
+        
+        // History info
+        historyIndex: state.historyIndex,
+        historyLength: state.history.length,
+      };
+      
+      // Format JSON
+      const formatted = JSON.stringify(frontendState, null, 2);
+      setFormattedState(formatted);
+    }, 100); // 100ms debounce
+
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [historyIndex, currentLayoutId, refrigerators]);
 
   const handleCopy = async () => {
     try {
