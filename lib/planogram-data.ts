@@ -82,24 +82,7 @@ export const availableLayoutsData: { [key: string]: LayoutData } = {
     ]
   },
   'g-10f': {
-    name: 'G-10f',
-    doorCount: 1,
-    doors: [
-      {
-        id: 'door-1',
-        width: Math.round(542 * PIXELS_PER_MM),
-        height: Math.round(1041 * PIXELS_PER_MM),
-        layout: {
-          'row-1': { id: 'row-1', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] },
-          'row-2': { id: 'row-2', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] },
-          'row-3': { id: 'row-3', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] },
-          'row-4': { id: 'row-4', capacity: Math.round(542 * PIXELS_PER_MM), maxHeight: Math.round(260 * PIXELS_PER_MM), allowedProductTypes: ['CAN', 'BOTTLE'], stacks: [] }
-        }
-      }
-    ]
-  },
-  'g-26c-double': {
-    name: 'G-26c Double Door Cooler',
+    name: 'g-10f',
     doorCount: 2,
     doors: [
       {
