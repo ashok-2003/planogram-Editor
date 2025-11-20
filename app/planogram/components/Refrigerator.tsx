@@ -72,12 +72,12 @@ export function RefrigeratorComponent({
     sortedRowIds.some(rowId => currentRefrigerator[rowId].stacks.length > 0),
     [sortedRowIds, currentRefrigerator]
   );
-
   // NEW: Calculate vertical offset for products (header pushes content down)
   const contentYOffset = headerHeight;
 
   return (
-    <div id="refrigerator-capture" className="inline-flex flex-col shadow-2xl">
+    <div id="refrigerator-layout" className="inline-flex flex-col shadow-2xl">
+      <div id="refrigerator-capture" className="inline-flex flex-col">
       {/* Outer Frame - Dark border like real fridge */}
       <div 
         className="bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-none p-4 shadow-2xl"
@@ -163,8 +163,8 @@ export function RefrigeratorComponent({
                 className="h-1 bg-gradient-to-r from-transparent via-gray-700 to-transparent rounded-full"
               />
             ))}
-          </div>
-        </div>
+          </div>        </div>
+      </div>
       </div>
     </div>
   );

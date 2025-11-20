@@ -13,6 +13,7 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
   // Subscribe to both historyIndex (for state changes) and currentLayoutId (for layout switches)
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
   const currentLayoutId = usePlanogramStore((state) => state.currentLayoutId);
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const [copied, setCopied] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const [backendData, setBackendData] = useState<any>(null);
@@ -22,6 +23,11 @@ export const BackendStatePreview = memo(function BackendStatePreview() {
   // Get refrigerator data - recalculates when historyIndex OR currentLayoutId changes
   const refrigerator = useMemo(() => {
     return usePlanogramStore.getState().refrigerator;
+  }, [historyIndex, currentLayoutId]);
+  
+  // Get refrigerators (multi-door) data - recalculates when historyIndex OR currentLayoutId changes
+  const refrigerators = useMemo(() => {
+    return usePlanogramStore.getState().refrigerators;
   }, [historyIndex, currentLayoutId]);
 
   // --- LAZY CALCULATION: Only calculate when component is visible and data changes ---

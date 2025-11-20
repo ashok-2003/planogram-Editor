@@ -139,23 +139,38 @@ function BlankSpaceWidthAdjuster({ selectedItem, refrigerator, onWidthChange }: 
 export function InfoPanel({ availableSkus, isRulesEnabled }: InfoPanelProps) {
   const selectedItemId = usePlanogramStore((state) => state.selectedItemId);
   const refrigerator = usePlanogramStore((state) => state.refrigerator);
+  // REFACTOR: Add multi-door support
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
+  const refrigerators = usePlanogramStore((state) => state.refrigerators);
   const actions = usePlanogramStore((state) => state.actions);
 
   const [isReplacing, setIsReplacing] = useState(false);
 
+  // REFACTOR: Use findStackLocation for multi-door support
   const selectedItem: Item | null = useMemo(() => {
     if (!selectedItemId) {
       setIsReplacing(false); // Reset replace mode when item is deselected
       return null;
     }
-    for (const rowId in refrigerator) {
-      for (const stack of refrigerator[rowId].stacks) {
-        const item = stack.find((i) => i.id === selectedItemId);
-        if (item) return item;
-      }
-    }
-    return null;
-  }, [selectedItemId, refrigerator]);
+    
+    const { findStackLocation } = usePlanogramStore.getState();
+    const location = findStackLocation(selectedItemId);
+    
+    if (!location) return null;
+    
+    // Get the correct refrigerator data (multi-door aware)
+    const refrigeratorData = isMultiDoor && location.doorId 
+      ? refrigerators[location.doorId] 
+      : refrigerator;
+    
+    const row = refrigeratorData[location.rowId];
+    if (!row) return null;
+    
+    const stack = row.stacks[location.stackIndex];
+    if (!stack) return null;
+    
+    return stack[location.itemIndex] || null;
+  }, [selectedItemId, refrigerator, isMultiDoor, refrigerators]);
 
   const handleReplace = (sku: Sku) => {
     actions.replaceSelectedItem(sku, isRulesEnabled);

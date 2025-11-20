@@ -23,39 +23,44 @@ function BlankSpaceWidthAdjuster({ selectedItem, historyIndex, onWidthChange }: 
   const currentWidthMM = Math.round(selectedItem.width / PIXELS_PER_MM);
   const [inputValue, setInputValue] = useState(currentWidthMM.toString());
   const [sliderValue, setSliderValue] = useState([currentWidthMM]);
-
   // OPTIMIZATION: Calculate available width based on historyIndex instead of refrigerator
   // This prevents recalculation during drag operations
+  // REFACTOR: Now uses findStackLocation to support multi-door refrigerators
   const availableWidth = useMemo(() => {
-    const refrigerator = usePlanogramStore.getState().refrigerator;
-    for (const rowId in refrigerator) {
-      const row = refrigerator[rowId];
-      for (const stack of row.stacks) {
-        if (stack.some(item => item.id === selectedItem.id)) {
-          // FIXED: Only count the bottom (first) item of each stack
-          // Stacked items (index > 0) don't take horizontal space
-          const usedWidth = row.stacks.reduce((sum, st) => {
-            // Only count the first item (bottom of stack)
-            const bottomItem = st[0];
-            if (!bottomItem) return sum;
+    const { findStackLocation } = usePlanogramStore.getState();
+    const location = findStackLocation(selectedItem.id);
+    
+    if (!location) return 0;
+    
+    // Get the correct refrigerator data (multi-door aware)
+    const state = usePlanogramStore.getState();
+    const refrigeratorData = state.isMultiDoor && location.doorId 
+      ? state.refrigerators[location.doorId] 
+      : state.refrigerator;
+    
+    const row = refrigeratorData[location.rowId];
+    if (!row) return 0;
+    
+    // FIXED: Only count the bottom (first) item of each stack
+    // Stacked items (index > 0) don't take horizontal space
+    const usedWidth = row.stacks.reduce((sum, st) => {
+      // Only count the first item (bottom of stack)
+      const bottomItem = st[0];
+      if (!bottomItem) return sum;
 
-            // If this is the selected item's stack, don't count it
-            if (st.some(item => item.id === selectedItem.id)) {
-              return sum;
-            }
-
-            // Add the bottom item's width (stacked items don't take horizontal space)
-            return sum + bottomItem.width;
-          }, 0);
-
-          const otherStacksCount = row.stacks.filter(st => !st.some(item => item.id === selectedItem.id)).length;
-          const gapsWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
-
-          return row.capacity - usedWidth - gapsWidth;
-        }
+      // If this is the selected item's stack, don't count it
+      if (st.some(item => item.id === selectedItem.id)) {
+        return sum;
       }
-    }
-    return 0;
+
+      // Add the bottom item's width (stacked items don't take horizontal space)
+      return sum + bottomItem.width;
+    }, 0);
+
+    const otherStacksCount = row.stacks.filter(st => !st.some(item => item.id === selectedItem.id)).length;
+    const gapsWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
+
+    return row.capacity - usedWidth - gapsWidth;
   }, [selectedItem.id, historyIndex]);
 
   const maxWidthMM = Math.floor(availableWidth / PIXELS_PER_MM);
@@ -151,24 +156,33 @@ export function PropertiesPanel({ availableSkus, isRulesEnabled }: PropertiesPan
 
   const [isReplacing, setIsReplacing] = useState(false);
   const [replaceSearchQuery, setReplaceSearchQuery] = useState('');
-
   // CRITICAL FIX: Get refrigerator data within useMemo based on historyIndex
   // This prevents re-renders when refrigerator reference changes during drag
+  // REFACTOR: Now uses findStackLocation to support multi-door refrigerators
   const selectedItem: Item | null = useMemo(() => {
     if (!selectedItemId) {
       setIsReplacing(false);
       return null;
     }
 
-    // Get fresh refrigerator data only when historyIndex or selectedItemId changes
-    const refrigerator = usePlanogramStore.getState().refrigerator;
-    for (const rowId in refrigerator) {
-      for (const stack of refrigerator[rowId].stacks) {
-        const item = stack.find((i) => i.id === selectedItemId);
-        if (item) return item;
-      }
-    }
-    return null;
+    // Get fresh data only when historyIndex or selectedItemId changes
+    const { findStackLocation, isMultiDoor, refrigerators, refrigerator } = usePlanogramStore.getState();
+    const location = findStackLocation(selectedItemId);
+    
+    if (!location) return null;
+    
+    // Get the correct refrigerator data (multi-door aware)
+    const refrigeratorData = isMultiDoor && location.doorId 
+      ? refrigerators[location.doorId] 
+      : refrigerator;
+    
+    const row = refrigeratorData[location.rowId];
+    if (!row) return null;
+    
+    const stack = row.stacks[location.stackIndex];
+    if (!stack) return null;
+    
+    return stack[location.itemIndex] || null;
   }, [selectedItemId, historyIndex]);
   const handleReplace = (sku: Sku) => {
     actions.replaceSelectedItem(sku, isRulesEnabled);

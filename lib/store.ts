@@ -5,23 +5,22 @@ import { produce } from 'immer';
 import { PIXELS_PER_MM } from './config';
 import { toast } from 'sonner';
 
-type StackLocation = { doorId?: string; rowId: string; stackIndex: number; itemIndex: number; };
+type StackLocation = { doorId: string; rowId: string; stackIndex: number; itemIndex: number; };
 
 interface PlanogramState {
   // NEW: Support for multi-door refrigerators
   isMultiDoor: boolean;
   refrigerators: MultiDoorRefrigerator; // e.g., { 'door-1': {...}, 'door-2': {...} }
-  
+
   // OLD: Keep for backward compatibility (will be populated from refrigerators['door-1'] if single door)
   refrigerator: Refrigerator;
-  
+
   selectedItemId: string | null;
-  
-  // History: Use union type to support both single and multi-door modes
-  // Will be normalized to MultiDoorRefrigerator format internally
-  history: (Refrigerator | MultiDoorRefrigerator)[];
+  // History: Always use MultiDoorRefrigerator format for consistency
+  // Single-door layouts are stored as { 'door-1': Refrigerator }
+  history: MultiDoorRefrigerator[];
   historyIndex: number;
-  
+
   // Persistence state
   currentLayoutId: string | null;
   hasPendingDraft: boolean;
@@ -29,15 +28,20 @@ interface PlanogramState {
     layoutId: string;
     timestamp: string;
   } | null;
-  
+
   // Sync status for UI feedback
   syncStatus: 'idle' | 'syncing' | 'synced';
   lastSynced: Date | null;
-    findStackLocation: (itemIdOrStackId: string) => StackLocation | null;  actions: {
-    // Multi-door helper functions (internal use)
-    _getRefrigeratorData: (doorId?: string) => Refrigerator;
-    _updateRefrigeratorData: (newData: Refrigerator, doorId?: string) => void;
-      selectItem: (itemId: string | null) => void;
+
+  // NEW: Temporary holding for data passed from Upload Page -> Planogram Page
+  pendingImportedData: {
+    layoutId: string;
+    layout: Refrigerator | MultiDoorRefrigerator;
+    layoutData?: any;
+  } | null;
+
+  findStackLocation: (itemIdOrStackId: string) => StackLocation | null; actions: {
+    selectItem: (itemId: string | null) => void;
     deleteSelectedItem: () => void;
     removeItemsById: (itemIds: string[]) => void;
     duplicateAndAddNew: () => void;
@@ -49,16 +53,16 @@ interface PlanogramState {
     stackItem: (draggedStackId: string, targetStackId: string) => void;
     undo: () => void;
     redo: () => void;
-    
+
     // NEW: Update blank space width
-    updateBlankWidth: (itemId: string, newWidthMM: number) => void;
-      // Persistence actions
-    initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit?: boolean) => void;
-    switchLayout: (layoutId: string, newLayout: Refrigerator) => void;
+    updateBlankWidth: (itemId: string, newWidthMM: number) => void;    // Persistence actions
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator | MultiDoorRefrigerator, forceInit?: boolean, layoutData?: any) => void;
+    switchLayout: (layoutId: string, newLayout: Refrigerator | MultiDoorRefrigerator, layoutData?: any) => void;
     restoreDraft: () => void;
     dismissDraft: () => void;
     clearDraft: () => void;
     manualSync: () => void;
+    setPendingImport: (data: { layoutId: string; layout: Refrigerator | MultiDoorRefrigerator; layoutData?: any } | null) => void;
   }
 }
 
@@ -121,20 +125,20 @@ const loadFromLocalStorage = (layoutId: string): StoredDraft | null => {
     const key = getStorageKey(layoutId);
     const data = localStorage.getItem(key);
     if (!data) return null;
-    
+
     const draft: StoredDraft = JSON.parse(data);
-    
+
     // Check if draft is expired (older than 2 days)
     const draftDate = new Date(draft.timestamp);
     const now = new Date();
     const daysDiff = (now.getTime() - draftDate.getTime()) / (1000 * 60 * 60 * 24);
-    
+
     if (daysDiff > DRAFT_EXPIRY_DAYS) {
       // Draft is expired, clear it
       localStorage.removeItem(key);
       return null;
     }
-    
+
     return draft;
   } catch (error) {
     console.error('Failed to load from localStorage:', error);
@@ -161,7 +165,7 @@ const debouncedPersist = (
   layoutId: string
 ): void => {
   if (saveTimeout) clearTimeout(saveTimeout);
-  
+
   saveTimeout = setTimeout(() => {
     saveToLocalStorage(refrigerator, history, historyIndex, layoutId);
   }, 1000);
@@ -175,13 +179,13 @@ const debouncedPersist = (
 const saveToHistory = (currentState: Refrigerator | MultiDoorRefrigerator, history: (Refrigerator | MultiDoorRefrigerator)[], historyIndex: number): { history: (Refrigerator | MultiDoorRefrigerator)[]; historyIndex: number } => {
   // If this is the very first change and history is empty, save the initial state
   if (history.length === 0) {
-    const newHistory = [produce(currentState, () => {})];
+    const newHistory = [produce(currentState, () => { })];
     return {
       history: newHistory,
       historyIndex: 0
     };
   }
-  
+
   // For subsequent changes, the current state is already at historyIndex
   // We don't need to add it again, just move the index forward
   return {
@@ -190,19 +194,42 @@ const saveToHistory = (currentState: Refrigerator | MultiDoorRefrigerator, histo
   };
 };
 
+/**
+ * Normalize state to MultiDoorRefrigerator format
+ * If single Refrigerator is passed, wrap it as { 'door-1': Refrigerator }
+ */
+const normalizeToMultiDoor = (state: Refrigerator | MultiDoorRefrigerator): MultiDoorRefrigerator => {
+  // Check if it's already multi-door format (has nested refrigerator objects)
+  const firstKey = Object.keys(state)[0];
+  if (!firstKey) return {};
+
+  const firstValue = state[firstKey];
+  // If firstValue has 'stacks' property, it's a Row, meaning this is a Refrigerator
+  if ('stacks' in firstValue) {
+    return { 'door-1': state as Refrigerator };
+  }
+
+  // Otherwise, it's already MultiDoorRefrigerator
+  return state as MultiDoorRefrigerator;
+};
+
 // Helper function to push new state after modification
-const pushToHistory = (newState: Refrigerator | MultiDoorRefrigerator, history: (Refrigerator | MultiDoorRefrigerator)[], historyIndex: number, currentLayoutId: string | null): { history: (Refrigerator | MultiDoorRefrigerator)[]; historyIndex: number } => {
+const pushToHistory = (newState: Refrigerator | MultiDoorRefrigerator, history: MultiDoorRefrigerator[], historyIndex: number, currentLayoutId: string | null): { history: MultiDoorRefrigerator[]; historyIndex: number } => {
   // Remove any future history if we're not at the end
-  const newHistory = history.slice(0, historyIndex + 1);  // Add the new state (Immer produces immutable draft, so we can add directly)
-  newHistory.push(produce(newState, () => {}));
+  const newHistory = history.slice(0, historyIndex + 1);
+
+  // Normalize to MultiDoorRefrigerator format before adding to history
+  const normalizedState = normalizeToMultiDoor(newState);
+  newHistory.push(produce(normalizedState, () => { }));
+
   // Limit history to last 50 states to prevent memory issues
   const limitedHistory = newHistory.slice(-50);
-  
+
   // Auto-save to localStorage with debounce (Phase 8)
   if (currentLayoutId) {
-    debouncedPersist(newState as any, limitedHistory as any, limitedHistory.length - 1, currentLayoutId);
+    debouncedPersist(normalizedState, limitedHistory, limitedHistory.length - 1, currentLayoutId);
   }
-  
+
   return {
     history: limitedHistory,
     historyIndex: limitedHistory.length - 1
@@ -216,16 +243,17 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
   selectedItemId: null,
   history: [],
   historyIndex: -1,
-  
+
   // Persistence state
   currentLayoutId: null,
   hasPendingDraft: false,
   draftMetadata: null,
   syncStatus: 'idle',
   lastSynced: null,
-    findStackLocation: (itemIdOrStackId: string) => {
+  pendingImportedData: null,
+  findStackLocation: (itemIdOrStackId: string) => {
     const { isMultiDoor, refrigerators, refrigerator } = get();
-    
+
     // Multi-door mode: search across all doors
     if (isMultiDoor) {
       for (const doorId in refrigerators) {
@@ -246,538 +274,537 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         }
       }
     } else {
-      // Single-door mode: use legacy refrigerator
+      // Single-door mode: use legacy refrigerator, always return 'door-1' as doorId
       for (const rowId in refrigerator) {
         for (let stackIndex = 0; stackIndex < refrigerator[rowId].stacks.length; stackIndex++) {
           const stack = refrigerator[rowId].stacks[stackIndex];
           // Check if it's a stack ID (first item) or find item in stack
           if (stack[0]?.id === itemIdOrStackId) {
-            return { rowId, stackIndex, itemIndex: 0 };
+            return { doorId: 'door-1', rowId, stackIndex, itemIndex: 0 };
           }
           // Find item in stack
           const itemIndex = stack.findIndex(i => i.id === itemIdOrStackId);
           if (itemIndex !== -1) {
-            return { rowId, stackIndex, itemIndex };
+            return { doorId: 'door-1', rowId, stackIndex, itemIndex };
           }
         }
       }
     }
     return null;
-  },
-  actions: {
-    // ========================================
-    // MULTI-DOOR HELPER FUNCTIONS
-    // ========================================
-    
-    /**
-     * Get the refrigerator data for a specific door (multi-door aware)
-     * Returns the appropriate refrigerator based on doorId and mode
-     */
-    _getRefrigeratorData: (doorId?: string): Refrigerator => {
-      const state = get();
-      if (state.isMultiDoor && doorId) {
-        return state.refrigerators[doorId] || {};
-      }
-      return state.refrigerator;
-    },
-    
-    /**
-     * Update refrigerator data (multi-door aware)
-     * Updates both refrigerator and refrigerators based on mode
-     */    _updateRefrigeratorData: (newData: Refrigerator, doorId?: string) => {
-      const state = get();
-      if (state.isMultiDoor && doorId) {
-        // Update specific door in refrigerators
-        const newRefrigerators = produce(state.refrigerators, draft => {
-          draft[doorId] = newData;
-        });
-        const historyUpdate = pushToHistory(newRefrigerators, state.history, state.historyIndex, state.currentLayoutId);
-        
-        // CRITICAL FIX: Always keep refrigerator synced with door-1 for backward compatibility
-        const updatedRefrigerator = doorId === 'door-1' ? newData : (newRefrigerators['door-1'] || state.refrigerator);
-        
-        set({
-          refrigerators: newRefrigerators,
-          refrigerator: updatedRefrigerator,
-          ...historyUpdate
-        });
-      } else {
-        // Single-door mode: update refrigerator
-        const historyUpdate = pushToHistory(newData, state.history, state.historyIndex, state.currentLayoutId);
-        set({
-          refrigerator: newData,
-          refrigerators: { 'door-1': newData },
-          ...historyUpdate
-        });
-      }
-    },
-    
+  }, actions: {
     selectItem: (itemId) => set({ selectedItemId: itemId }),
+    setPendingImport: (data) => set({ pendingImportedData: data }),
     deleteSelectedItem: () => {
-        const { selectedItemId, actions } = get();
-        if (!selectedItemId) return;
-        actions.removeItemsById([selectedItemId]);
-    },    removeItemsById: (itemIds) => {
-      set(state => {
-        const { findStackLocation, actions } = get();
-        
-        // Find which door(s) contain these items
-        const doorsToUpdate = new Set<string>();
-        for (const itemId of itemIds) {
-          const location = findStackLocation(itemId);
-          if (location) {
-            doorsToUpdate.add(location.doorId || 'door-1');
-          }
+      const { selectedItemId, actions } = get();
+      if (!selectedItemId) return;
+      actions.removeItemsById([selectedItemId]);
+    }, removeItemsById: (itemIds) => {
+      const state = get();
+      const { findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
+
+      // Find which door(s) contain these items
+      const doorsToUpdate = new Set<string>();
+      for (const itemId of itemIds) {
+        const location = findStackLocation(itemId);
+        if (location) {
+          doorsToUpdate.add(location.doorId);
         }
-        
-        // Update each affected door
-        let itemsRemoved = false;
+      }
+
+      // Update each affected door
+      let itemsRemoved = false;
+      const updatedRefrigerators = produce(refrigerators, draft => {
         for (const doorId of doorsToUpdate) {
-          const currentFridge = actions._getRefrigeratorData(doorId);
-          
-          const newFridge = produce(currentFridge, draft => {
-            for (const rowId in draft) {
-              // Filter out empty stacks that result from removing items
-              draft[rowId].stacks = draft[rowId].stacks
-                .map((stack: Item[]) => {
-                  // Filter out the items to be removed from this stack
-                  return stack.filter(item => {
-                    const shouldRemove = itemIds.includes(item.id);
-                    if (shouldRemove) itemsRemoved = true;
-                    return !shouldRemove;
-                  });
-                })
-                // After filtering items, filter out any stacks that are now empty
-                .filter((stack: Item[]) => stack.length > 0);
-            }
-          });
-          
-          if (itemsRemoved) {
-            actions._updateRefrigeratorData(newFridge, doorId);
+          const doorData = draft[doorId];
+          if (!doorData) continue;
+
+          for (const rowId in doorData) {
+            // Filter out empty stacks that result from removing items
+            doorData[rowId].stacks = doorData[rowId].stacks
+              .map((stack: Item[]) => {
+                // Filter out the items to be removed from this stack
+                return stack.filter(item => {
+                  const shouldRemove = itemIds.includes(item.id);
+                  if (shouldRemove) itemsRemoved = true;
+                  return !shouldRemove;
+                });
+              })
+              // After filtering items, filter out any stacks that are now empty
+              .filter((stack: Item[]) => stack.length > 0);
           }
         }
-        
-        if (itemsRemoved) {
-          return { selectedItemId: null };
-        }
-        return state; // No changes
       });
-    },duplicateAndAddNew: () => {
-        const { selectedItemId, findStackLocation } = get();
-        if (!selectedItemId) return;
-        
-        const location = findStackLocation(selectedItemId);
-        if (!location) return;
 
-        set(state => {
-            const row = state.refrigerator[location.rowId];
-            const stack = row.stacks[location.stackIndex];
-            const item = stack.find((i: Item) => i.id === selectedItemId);
-            if (!item) return state;            const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
-            
-            // Account for gaps between stacks (1px per gap)
-            const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
-            
-            if (currentWidth + newItem.width + gapWidth <= row.capacity) {
-                const newFridge = produce(state.refrigerator, draft => {
-                    draft[location.rowId].stacks.push([newItem]);
-                });                toast.success('Item duplicated successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-                return { refrigerator: newFridge, ...historyUpdate };
-            } else {
-                toast.error('Not enough space in the row to duplicate!');
-                return state;
-            }
+      if (itemsRemoved) {
+        const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+        set({
+          refrigerators: updatedRefrigerators,
+          refrigerator: updatedRefrigerators['door-1'] || {},
+          selectedItemId: null,
+          ...historyUpdate
         });
-    },    duplicateAndStack: () => {
-        const { selectedItemId, findStackLocation } = get();
-        if (!selectedItemId) return;
-        
-        const location = findStackLocation(selectedItemId);
-        if (!location) return;
-
-        set(state => {
-            const row = state.refrigerator[location.rowId];
-            const stack = row.stacks[location.stackIndex];
-            const item = stack.find((i: Item) => i.id === selectedItemId);
-            if (!item || !item.constraints.stackable) return state;
-
-            const newItem = { ...item, id: generateUniqueId(item.skuId) };
-            const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
-            
-            if (currentStackHeight + newItem.height <= row.maxHeight) {
-                const newFridge = produce(state.refrigerator, draft => {
-                    draft[location.rowId].stacks[location.stackIndex].push(newItem);
-                });                toast.success('Item stacked successfully!');
-                const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-                return { refrigerator: newFridge, ...historyUpdate };
-            } else {
-                toast.error('Cannot stack - exceeds maximum row height!');
-                return state;
-            }
-        });
-    },    replaceSelectedItem: (newSku, isRulesEnabled = true) => {
-      const { selectedItemId, findStackLocation } = get();
+      }
+    }, duplicateAndAddNew: () => {
+      const state = get();
+      const { selectedItemId, findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
       if (!selectedItemId) return;
 
       const location = findStackLocation(selectedItemId);
       if (!location) return;
-      
-      set(state => {
-        const row = state.refrigerator[location.rowId];
-        const stack = row.stacks[location.stackIndex];
-        const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
-        const oldItem = stack[itemIndex];
-        const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
 
-        // Only check product type rules if rules are enabled
-        if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
-          toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
-          return state;
-        }          // Always check size constraints (width and height)
-        const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
-        const widthDifference = newItem.width - oldItem.width;
-        
-        // Account for gaps between stacks (1px per gap)
-        const gapWidth = Math.max(0, row.stacks.length - 1);
-        
-        if (currentWidth + widthDifference + gapWidth > row.capacity) {
-          toast.error('Cannot replace: The new item is too wide for this row.');
-          return state;
+      const doorId = location.doorId;
+      const currentFridge = refrigerators[doorId] || {};
+      const row = currentFridge[location.rowId];
+      const stack = row.stacks[location.stackIndex];
+      const item = stack.find((i: Item) => i.id === selectedItemId);
+      if (!item) return;
+
+      const newItem = { ...item, id: generateUniqueId(item.skuId) };
+      const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
+
+      // Account for gaps between stacks (1px per gap)
+      const gapWidth = row.stacks.length; // Will have one more gap after adding new stack
+
+      if (currentWidth + newItem.width + gapWidth <= row.capacity) {
+        const updatedRefrigerators = produce(refrigerators, draft => {
+          draft[doorId][location.rowId].stacks.push([newItem]);
+        });
+
+        const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+        set({
+          refrigerators: updatedRefrigerators,
+          refrigerator: updatedRefrigerators['door-1'] || {},
+          ...historyUpdate
+        });
+
+        toast.success('Item duplicated successfully!');
+      } else {
+        toast.error('Not enough space in the row to duplicate!');
+      }
+    }, duplicateAndStack: () => {
+      const state = get();
+      const { selectedItemId, findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
+      if (!selectedItemId) return;
+
+      const location = findStackLocation(selectedItemId);
+      if (!location) return;
+
+      const doorId = location.doorId;
+      const currentFridge = refrigerators[doorId] || {};
+      const row = currentFridge[location.rowId];
+      const stack = row.stacks[location.stackIndex];
+      const item = stack.find((i: Item) => i.id === selectedItemId);
+      if (!item || !item.constraints.stackable) return;
+
+      const newItem = { ...item, id: generateUniqueId(item.skuId) };
+      const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+
+      if (currentStackHeight + newItem.height <= row.maxHeight) {
+        const updatedRefrigerators = produce(refrigerators, draft => {
+          draft[doorId][location.rowId].stacks[location.stackIndex].push(newItem);
+        });
+
+        const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+        set({
+          refrigerators: updatedRefrigerators,
+          refrigerator: updatedRefrigerators['door-1'] || {},
+          ...historyUpdate
+        });
+
+        toast.success('Item stacked successfully!');
+      } else {
+        toast.error('Cannot stack - exceeds maximum row height!');
+      }
+    }, replaceSelectedItem: (newSku, isRulesEnabled = true) => {
+      const state = get();
+      const { selectedItemId, findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
+      if (!selectedItemId) return;
+
+      const location = findStackLocation(selectedItemId);
+      if (!location) return;
+
+      const doorId = location.doorId;
+      const currentFridge = refrigerators[doorId] || {};
+      const row = currentFridge[location.rowId];
+      const stack = row.stacks[location.stackIndex];
+      const itemIndex = stack.findIndex((i: Item) => i.id === selectedItemId);
+      const oldItem = stack[itemIndex];
+      const newItem: Item = { ...newSku, id: generateUniqueId(newSku.skuId) };
+
+      // Only check product type rules if rules are enabled
+      if (isRulesEnabled && row.allowedProductTypes !== 'all' && !row.allowedProductTypes.includes(newItem.productType)) {
+        toast.error(`Cannot replace: This row does not accept "${newItem.productType}" products.`);
+        return;
+      }
+
+      // Always check size constraints (width and height)
+      const currentWidth = row.stacks.reduce((acc: number, s: Item[]) => acc + getStackWidth(s), 0);
+      const widthDifference = newItem.width - oldItem.width;
+
+      // Account for gaps between stacks (1px per gap)
+      const gapWidth = Math.max(0, row.stacks.length - 1);
+
+      if (currentWidth + widthDifference + gapWidth > row.capacity) {
+        toast.error('Cannot replace: The new item is too wide for this row.');
+        return;
+      }
+
+      const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
+      const heightDifference = newItem.height - oldItem.height;
+      if (currentStackHeight + heightDifference > row.maxHeight) {
+        toast.error('Cannot replace: The new item is too tall for this stack.');
+        return;
+      }
+
+      const updatedRefrigerators = produce(refrigerators, draft => {
+        draft[doorId][location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
+      });
+
+      const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+      set({
+        refrigerators: updatedRefrigerators,
+        refrigerator: updatedRefrigerators['door-1'] || {},
+        selectedItemId: newItem.id,
+        ...historyUpdate
+      });
+
+      toast.success('Item replaced successfully!');
+    }, addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
+      const state = get();
+      const { refrigerators, history, historyIndex, currentLayoutId } = state;
+
+      // Use provided doorId, or default to door-1
+      const finalDoorId = doorId || 'door-1';
+
+      console.log('🔧 addItemFromSku called:', { sku: sku.skuId, targetRowId, targetStackIndex, doorId, finalDoorId });
+
+      const currentFridge = refrigerators[finalDoorId] || {};
+      console.log('📦 Current fridge data:', { doorId: finalDoorId, hasRow: !!currentFridge[targetRowId], rowKeys: Object.keys(currentFridge) });
+
+      const targetRow = currentFridge[targetRowId];
+      if (!targetRow) {
+        console.log('❌ Target row not found!', { targetRowId, availableRows: Object.keys(currentFridge) });
+        return;
+      }
+
+      // NEW: For BLANK spaces, set height to match row's maxHeight
+      const newItem: Item = {
+        ...sku,
+        id: generateUniqueId(sku.skuId),
+        // Auto-fill height for blank spaces
+        height: sku.productType === 'BLANK' ? targetRow.maxHeight : sku.height,
+        heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
+        widthMM: sku.widthMM,
+        customWidth: sku.productType === 'BLANK' ? sku.width : undefined
+      };
+
+      const updatedRefrigerators = produce(refrigerators, draft => {
+        if (targetStackIndex >= 0 && targetStackIndex <= draft[finalDoorId][targetRowId].stacks.length) {
+          draft[finalDoorId][targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);
+        } else {
+          draft[finalDoorId][targetRowId].stacks.push([newItem]);
         }
-        const currentStackHeight = stack.reduce((acc: number, i: Item) => acc + i.height, 0);
-        const heightDifference = newItem.height - oldItem.height;
-        if (currentStackHeight + heightDifference > row.maxHeight) {
-          toast.error('Cannot replace: The new item is too tall for this stack.');
-          return state;
-        }
-        
-        const newFridge = produce(state.refrigerator, draft => {
-          draft[location.rowId].stacks[location.stackIndex][itemIndex] = newItem;
-        });        toast.success('Item replaced successfully!');
-        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-        return { refrigerator: newFridge, selectedItemId: newItem.id, ...historyUpdate };
-      });    },    addItemFromSku: (sku, targetRowId, targetStackIndex = -1, doorId?: string) => {
-        const { findStackLocation, actions } = get();
-        
-        // Use provided doorId, or try to find it, or default to door-1
-        const finalDoorId = doorId || findStackLocation(targetRowId)?.doorId || 'door-1';
-        
-        console.log('🔧 addItemFromSku called:', { sku: sku.skuId, targetRowId, targetStackIndex, doorId, finalDoorId });
-        
-        set(state => {
-            const currentFridge = actions._getRefrigeratorData(finalDoorId);
-            console.log('📦 Current fridge data:', { doorId: finalDoorId, hasRow: !!currentFridge[targetRowId], rowKeys: Object.keys(currentFridge) });
-            
-            const targetRow = currentFridge[targetRowId];
-            if(!targetRow) {
-              console.log('❌ Target row not found!', { targetRowId, availableRows: Object.keys(currentFridge) });
-              return state;
-            }
-            
-            // NEW: For BLANK spaces, set height to match row's maxHeight
-            const newItem: Item = { 
-              ...sku, 
-              id: generateUniqueId(sku.skuId),
-              // Auto-fill height for blank spaces
-              height: sku.productType === 'BLANK' ? targetRow.maxHeight : sku.height,
-              heightMM: sku.productType === 'BLANK' ? targetRow.maxHeight / PIXELS_PER_MM : sku.heightMM,
-              widthMM: sku.widthMM,
-              customWidth: sku.productType === 'BLANK' ? sku.width : undefined
-            };              const newFridge = produce(currentFridge, draft => {
-              if (targetStackIndex >= 0 && targetStackIndex <= draft[targetRowId].stacks.length) {
-                draft[targetRowId].stacks.splice(targetStackIndex, 0, [newItem]);              } else {
-                draft[targetRowId].stacks.push([newItem]);
-              }
-            });
-            
-            console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: newFridge[targetRowId].stacks.length });
-            actions._updateRefrigeratorData(newFridge, finalDoorId);
-            return state;
-        });
-    },moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
-        set(state => {
-            const { findStackLocation, actions, isMultiDoor } = get();
-            const location = findStackLocation(itemId);
-            if (!location) return state;
+      });
 
-            const sourceDoorId = location.doorId || 'door-1';
-            const finalTargetDoorId = targetDoorId || sourceDoorId;
-            
-            // Check if it's a cross-door move
-            const isCrossDoorMove = isMultiDoor && sourceDoorId !== finalTargetDoorId;
-            
-            if (isCrossDoorMove) {
-              // Cross-door move: remove from source, add to target
-              const sourceFridge = actions._getRefrigeratorData(sourceDoorId);
-              const targetFridge = actions._getRefrigeratorData(finalTargetDoorId);
-              const draggedStack = sourceFridge[location.rowId].stacks[location.stackIndex];
-              
-              // Update source door
-              const newSourceFridge = produce(sourceFridge, draft => {
-                draft[location.rowId].stacks.splice(location.stackIndex, 1);
-              });
-              
-              // Update target door
-              const newTargetFridge = produce(targetFridge, draft => {
-                const targetRow = draft[targetRowId];
-                if (targetStackIndex !== undefined) {
-                  targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
-                } else {
-                  targetRow.stacks.push(draggedStack);
-                }
-              });
-              
-              // Update both doors
-              actions._updateRefrigeratorData(newSourceFridge, sourceDoorId);
-              actions._updateRefrigeratorData(newTargetFridge, finalTargetDoorId);
-              
-            } else {
-              // Same-door move
-              const currentFridge = actions._getRefrigeratorData(sourceDoorId);
-              const draggedStack = currentFridge[location.rowId].stacks[location.stackIndex];
-                const newFridge = produce(currentFridge, draft => {
-                draft[location.rowId].stacks.splice(location.stackIndex, 1);
-                
-                const targetRow = draft[targetRowId];
-                if (targetStackIndex !== undefined) {
-                    targetRow.stacks.splice(targetStackIndex, 0, draggedStack);              } else {
-                    targetRow.stacks.push(draggedStack);
-                }
-              });
+      console.log('✅ Item added, updating store:', { doorId: finalDoorId, newStacksCount: updatedRefrigerators[finalDoorId][targetRowId].stacks.length });
 
-              actions._updateRefrigeratorData(newFridge, sourceDoorId);
-            }
-            return state;
-        });
-    },    reorderStack: (rowId, oldIndex, newIndex, doorId?: string) => {
-        set(state => {
-            const { actions } = get();
-            
-            // Use provided doorId or try to find it
-            const finalDoorId = doorId || (state.isMultiDoor 
-              ? Object.keys(state.refrigerators).find(dId => 
-                  state.refrigerators[dId][rowId]?.stacks?.[oldIndex]?.[0]?.id
-                )
-              : undefined) || 'door-1';
-              const currentFridge = actions._getRefrigeratorData(finalDoorId);
-            const newFridge = produce(currentFridge, draft => {
-              draft[rowId].stacks = arrayMove(draft[rowId].stacks, oldIndex, newIndex);
-            });
-            
-            actions._updateRefrigeratorData(newFridge, finalDoorId);
-            return state;
-        });
-    },    stackItem: (draggedStackId, targetStackId) => {
-        set(state => {
-            const { findStackLocation, actions } = get();
-            const draggedLocation = findStackLocation(draggedStackId);
-            const targetLocation = findStackLocation(targetStackId);
+      const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+      set({
+        refrigerators: updatedRefrigerators,
+        refrigerator: updatedRefrigerators['door-1'] || {},
+        ...historyUpdate
+      });
+    }, moveItem: (itemId, targetRowId, targetStackIndex, targetDoorId?: string) => {
+      const state = get();
+      const { findStackLocation, isMultiDoor, refrigerators, history, historyIndex, currentLayoutId } = state;
+      const location = findStackLocation(itemId);
+      if (!location) return;
 
-            if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
-                return state;
-            }
-            
-            // Ensure both items are in the same door
-            if (draggedLocation.doorId !== targetLocation.doorId) {
-                toast.error('Cannot stack items across different doors');
-                return state;
-            }
-            
-            const doorId = draggedLocation.doorId || 'door-1';
-            const currentFridge = actions._getRefrigeratorData(doorId);
-            const row = currentFridge[draggedLocation.rowId];
-            const draggedStack = row.stacks[draggedLocation.stackIndex];
-            const itemToStack = draggedStack[0];
-              const newFridge = produce(currentFridge, draft => {
-              // Add item to target stack
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
-              
-              // Auto-sort by width: ASCENDING (narrowest first in array)
-              // With flex-col-reverse: array[0] (narrow) shows at TOP, array[last] (wide) shows at BOTTOM
-              draft[draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => a.width - b.width);
-              
-              // Remove the original stack
-              draft[draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
-            });
+      const sourceDoorId = location.doorId;
+      const finalTargetDoorId = targetDoorId || sourceDoorId;
 
-            actions._updateRefrigeratorData(newFridge, doorId);
-            return state;
+      // Check if it's a cross-door move
+      const isCrossDoorMove = isMultiDoor && sourceDoorId !== finalTargetDoorId;
+
+      if (isCrossDoorMove) {
+        // Cross-door move: update both doors in one transaction
+        const sourceFridge = refrigerators[sourceDoorId] || {};
+        const draggedStack = sourceFridge[location.rowId].stacks[location.stackIndex];
+
+        const updatedRefrigerators = produce(refrigerators, draft => {
+          // Remove from source door
+          draft[sourceDoorId][location.rowId].stacks.splice(location.stackIndex, 1);
+
+          // Add to target door
+          const targetRow = draft[finalTargetDoorId][targetRowId];
+          if (targetStackIndex !== undefined) {
+            targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+          } else {
+            targetRow.stacks.push(draggedStack);
+          }
         });
-    },undo: () => {
+
+        const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+        set({
+          refrigerators: updatedRefrigerators,
+          refrigerator: updatedRefrigerators['door-1'] || {},
+          ...historyUpdate
+        });
+
+      } else {
+        // Same-door move
+        const currentFridge = refrigerators[sourceDoorId] || {};
+        const draggedStack = currentFridge[location.rowId].stacks[location.stackIndex];
+
+        const updatedRefrigerators = produce(refrigerators, draft => {
+          // Remove from source
+          draft[sourceDoorId][location.rowId].stacks.splice(location.stackIndex, 1);
+
+          // Add to target
+          const targetRow = draft[sourceDoorId][targetRowId];
+          if (targetStackIndex !== undefined) {
+            targetRow.stacks.splice(targetStackIndex, 0, draggedStack);
+          } else {
+            targetRow.stacks.push(draggedStack);
+          }
+        });
+
+        const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+        set({
+          refrigerators: updatedRefrigerators,
+          refrigerator: updatedRefrigerators['door-1'] || {},
+          ...historyUpdate
+        });
+      }
+    }, reorderStack: (rowId, oldIndex, newIndex, doorId?: string) => {
+      const state = get();
+      const { isMultiDoor, refrigerators, history, historyIndex, currentLayoutId } = state;
+
+      // Use provided doorId or try to find it
+      const finalDoorId = doorId || (isMultiDoor
+        ? Object.keys(refrigerators).find(dId =>
+          refrigerators[dId][rowId]?.stacks?.[oldIndex]?.[0]?.id
+        )
+        : undefined) || 'door-1';
+
+      const updatedRefrigerators = produce(refrigerators, draft => {
+        draft[finalDoorId][rowId].stacks = arrayMove(draft[finalDoorId][rowId].stacks, oldIndex, newIndex);
+      });
+
+      const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+      set({
+        refrigerators: updatedRefrigerators,
+        refrigerator: updatedRefrigerators['door-1'] || {},
+        ...historyUpdate
+      });
+    }, stackItem: (draggedStackId, targetStackId) => {
+      const state = get();
+      const { findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
+      const draggedLocation = findStackLocation(draggedStackId);
+      const targetLocation = findStackLocation(targetStackId);
+
+      if (!draggedLocation || !targetLocation || draggedLocation.rowId !== targetLocation.rowId) {
+        return;
+      }
+
+      // Ensure both items are in the same door
+      if (draggedLocation.doorId !== targetLocation.doorId) {
+        toast.error('Cannot stack items across different doors');
+        return;
+      }
+
+      const doorId = draggedLocation.doorId;
+      const currentFridge = refrigerators[doorId] || {};
+      const row = currentFridge[draggedLocation.rowId];
+      const draggedStack = row.stacks[draggedLocation.stackIndex];
+      const itemToStack = draggedStack[0];
+
+      const updatedRefrigerators = produce(refrigerators, draft => {
+        // Add item to target stack
+        draft[doorId][draggedLocation.rowId].stacks[targetLocation.stackIndex].push(itemToStack);
+
+        // Auto-sort by width: ASCENDING (narrowest first in array)
+        // With flex-col-reverse: array[0] (narrow) shows at TOP, array[last] (wide) shows at BOTTOM
+        draft[doorId][draggedLocation.rowId].stacks[targetLocation.stackIndex].sort((a, b) => a.width - b.width);
+
+        // Remove the original stack
+        draft[doorId][draggedLocation.rowId].stacks.splice(draggedLocation.stackIndex, 1);
+      });
+
+      const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+      set({
+        refrigerators: updatedRefrigerators,
+        refrigerator: updatedRefrigerators['door-1'] || {},
+        ...historyUpdate
+      });
+    }, undo: () => {
       set(state => {
         if (state.historyIndex > 0) {
           const newIndex = state.historyIndex - 1;
-          const previousState = state.history[newIndex];
+          const previousMultiDoor = state.history[newIndex];
           toast.success('Undo successful');
-          
-          // Handle both single and multi-door history states
-          if (state.isMultiDoor) {
-            const previousMultiDoor = previousState as MultiDoorRefrigerator;
-            return {
-              refrigerators: produce(previousMultiDoor, () => {}),
-              refrigerator: produce(previousMultiDoor['door-1'] || {}, () => {}),
-              historyIndex: newIndex,
-              selectedItemId: null
-            };
-          } else {
-            return {
-              refrigerator: produce(previousState as Refrigerator, () => {}),
-              refrigerators: { 'door-1': produce(previousState as Refrigerator, () => {}) },
-              historyIndex: newIndex,
-              selectedItemId: null
-            };
-          }
+
+          // History is always MultiDoorRefrigerator format
+          return {
+            refrigerators: produce(previousMultiDoor, () => { }),
+            refrigerator: produce(previousMultiDoor['door-1'] || {}, () => { }),
+            historyIndex: newIndex,
+            selectedItemId: null
+          };
         } else {
           toast.error('Nothing to undo');
           return state;
         }
       });
-    },    redo: () => {
+    }, redo: () => {
       set(state => {
         if (state.historyIndex < state.history.length - 1) {
           const newIndex = state.historyIndex + 1;
-          const nextState = state.history[newIndex];
+          const nextMultiDoor = state.history[newIndex];
           toast.success('Redo successful');
-          
-          // Handle both single and multi-door history states
-          if (state.isMultiDoor) {
-            const nextMultiDoor = nextState as MultiDoorRefrigerator;
-            return {
-              refrigerators: produce(nextMultiDoor, () => {}),
-              refrigerator: produce(nextMultiDoor['door-1'] || {}, () => {}),
-              historyIndex: newIndex,
-              selectedItemId: null
-            };
-          } else {
-            return {
-              refrigerator: produce(nextState as Refrigerator, () => {}),
-              refrigerators: { 'door-1': produce(nextState as Refrigerator, () => {}) },
-              historyIndex: newIndex,
-              selectedItemId: null
-            };
-          }
+
+          // History is always MultiDoorRefrigerator format
+          return {
+            refrigerators: produce(nextMultiDoor, () => { }),
+            refrigerator: produce(nextMultiDoor['door-1'] || {}, () => { }),
+            historyIndex: newIndex,
+            selectedItemId: null
+          };
         } else {
           toast.error('Nothing to redo');
-          return state;        }
+          return state;
+        }
       });
     },
-    
     // ========================================
     // Blank Space Width Update
     // ========================================
-      updateBlankWidth: (itemId: string, newWidthMM: number) => {
-      set(state => {
-        const { findStackLocation } = get();
-        const location = findStackLocation(itemId);
-        
-        if (!location) {
-          toast.error('Item not found');
-          return state;
+    updateBlankWidth: (itemId: string, newWidthMM: number) => {
+      const state = get();
+      const { findStackLocation, refrigerators, history, historyIndex, currentLayoutId } = state;
+      const location = findStackLocation(itemId);
+
+      if (!location) {
+        toast.error('Item not found');
+        return;
+      }
+
+      const doorId = location.doorId;
+      const currentFridge = refrigerators[doorId] || {};
+      const item = currentFridge[location.rowId].stacks[location.stackIndex][location.itemIndex];
+
+      // Only allow width update for BLANK spaces
+      if (item.productType !== 'BLANK') {
+        toast.error('Width can only be adjusted for blank spaces');
+        return;
+      }
+
+      const row = currentFridge[location.rowId];
+
+      // CRITICAL FIX: Only count the bottom (first) item of each stack
+      // Stacked items (index > 0) don't take horizontal space
+      const usedWidth = row.stacks.reduce((sum, stack) => {
+        // Only count the first item (bottom of stack)
+        const bottomItem = stack[0];
+        if (!bottomItem) return sum;
+
+        // If this is the selected item's stack, don't count it
+        if (stack.some(stackItem => stackItem.id === itemId)) {
+          return sum;
         }
-        
-        const item = state.refrigerator[location.rowId].stacks[location.stackIndex][location.itemIndex];
-        
-        // Only allow width update for BLANK spaces
-        if (item.productType !== 'BLANK') {
-          toast.error('Width can only be adjusted for blank spaces');
-          return state;
-        }
-        
-        const row = state.refrigerator[location.rowId];
-        
-        // CRITICAL FIX: Only count the bottom (first) item of each stack
-        // Stacked items (index > 0) don't take horizontal space
-        const usedWidth = row.stacks.reduce((sum, stack) => {
-          // Only count the first item (bottom of stack)
-          const bottomItem = stack[0];
-          if (!bottomItem) return sum;
-          
-          // If this is the selected item's stack, don't count it
-          if (stack.some(stackItem => stackItem.id === itemId)) {
-            return sum;
-          }
-          
-          // Add the bottom item's width (stacked items don't take horizontal space)
-          return sum + bottomItem.width;
-        }, 0);
-        
-        // CRITICAL FIX: Account for 1px gaps between OTHER stacks (excluding the selected one)
-        // We need to count gaps between OTHER stacks (excluding the selected one)
-        // Example: If there are 3 total stacks and we're editing one:
-        //   - Other stacks: 2
-        //   - Gaps between other stacks: 2 - 1 = 1px
-        const otherStacksCount = row.stacks.filter(stack => !stack.some(stackItem => stackItem.id === itemId)).length;
-        const gapWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
-        
-        const availableWidth = row.capacity - usedWidth - gapWidth;
-        
-        // Clamp to min/max (min: 25mm, max: available space)
-        const MIN_WIDTH_MM = 25;
-        const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
-        const MAX_WIDTH = availableWidth;
-        
-        const newWidth = Math.round(newWidthMM * PIXELS_PER_MM);
-        const clampedWidth = Math.max(MIN_WIDTH, Math.min(newWidth, MAX_WIDTH));
-        const clampedWidthMM = clampedWidth / PIXELS_PER_MM;
-        
-        // If no change, don't update
-        if (clampedWidth === item.width) {
-          return state;
-        }
-        
-        // Update item width
-        const newFridge = produce(state.refrigerator, draft => {
-          const targetItem = draft[location.rowId].stacks[location.stackIndex][location.itemIndex];
-          targetItem.width = clampedWidth;
-          targetItem.widthMM = clampedWidthMM;
-          targetItem.customWidth = clampedWidth;
-        });
-        
-        const historyUpdate = pushToHistory(newFridge, state.history, state.historyIndex, state.currentLayoutId);
-        return { refrigerator: newFridge, ...historyUpdate };
+
+        // Add the bottom item's width (stacked items don't take horizontal space)
+        return sum + bottomItem.width;
+      }, 0);
+
+      // CRITICAL FIX: Account for 1px gaps between OTHER stacks (excluding the selected one)
+      // We need to count gaps between OTHER stacks (excluding the selected one)
+      // Example: If there are 3 total stacks and we're editing one:
+      //   - Other stacks: 2
+      //   - Gaps between other stacks: 2 - 1 = 1px
+      const otherStacksCount = row.stacks.filter(stack => !stack.some(stackItem => stackItem.id === itemId)).length;
+      const gapWidth = otherStacksCount > 1 ? otherStacksCount - 1 : 0;
+
+      const availableWidth = row.capacity - usedWidth - gapWidth;
+
+      // Clamp to min/max (min: 25mm, max: available space)
+      const MIN_WIDTH_MM = 25;
+      const MIN_WIDTH = Math.round(MIN_WIDTH_MM * PIXELS_PER_MM);
+      const MAX_WIDTH = availableWidth;
+
+      const newWidth = Math.round(newWidthMM * PIXELS_PER_MM);
+      const clampedWidth = Math.max(MIN_WIDTH, Math.min(newWidth, MAX_WIDTH));
+      const clampedWidthMM = clampedWidth / PIXELS_PER_MM;
+
+      // If no change, don't update
+      if (clampedWidth === item.width) {
+        return;
+      }
+
+      // Update item width
+      const updatedRefrigerators = produce(refrigerators, draft => {
+        const targetItem = draft[doorId][location.rowId].stacks[location.stackIndex][location.itemIndex];
+        targetItem.width = clampedWidth;
+        targetItem.widthMM = clampedWidthMM;
+        targetItem.customWidth = clampedWidth;
       });
-    },
-    
-    // ========================================
+
+      const historyUpdate = pushToHistory(updatedRefrigerators, history, historyIndex, currentLayoutId);
+      set({
+        refrigerators: updatedRefrigerators,
+        refrigerator: updatedRefrigerators['door-1'] || {},
+        ...historyUpdate
+      });
+    },// ========================================
     // Persistence Actions
     // ========================================
-      initializeLayout: (layoutId: string, initialLayout: Refrigerator, forceInit = false) => {
+    initializeLayout: (layoutId: string, initialLayout: Refrigerator | MultiDoorRefrigerator, forceInit = false, layoutData?: any) => {
       // If forceInit is true (e.g., from AI import), skip draft check and use provided layout
       if (forceInit) {
+        const normalizedLayout = normalizeToMultiDoor(initialLayout);
+        const initialHistory = [produce(normalizedLayout, () => { })]; // Create history array
+
+        // 1. Update Zustand State
         set({
-          refrigerator: initialLayout,
-          history: [produce(initialLayout, () => {})],
+          isMultiDoor: layoutData?.doorCount > 1,
+          refrigerators: normalizedLayout,
+          refrigerator: normalizedLayout['door-1'] || {},
+          history: initialHistory,
           historyIndex: 0,
           currentLayoutId: layoutId,
           hasPendingDraft: false,
           draftMetadata: null,
-          syncStatus: 'idle',
+          syncStatus: 'synced', // Mark as synced immediately
           selectedItemId: null
         });
+
+        // 2. CRITICAL FIX: Save to LocalStorage IMMEDIATELY
+        // This ensures the data survives a page refresh
+        saveToLocalStorage(
+          normalizedLayout,
+          initialHistory,
+          0,
+          layoutId
+        );
+
         return;
       }
-      
+
       const draft = loadFromLocalStorage(layoutId);
-      
+
       // Check if this is a multi-door layout
       const isMultiDoor = layoutData?.doorCount && layoutData?.doorCount > 1;
-        if (draft) {
-        // Draft exists - load it and show restore prompt
-        const draftRefrigerators = isMultiDoor 
-          ? (draft.refrigerator as MultiDoorRefrigerator) 
-          : { 'door-1': draft.refrigerator as Refrigerator };
-        
-        const draftRefrigerator = isMultiDoor
-          ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
-          : draft.refrigerator as Refrigerator;
-        
+
+      if (draft) {
+
+        const draftNormalized = normalizeToMultiDoor(draft.refrigerator);
+        const normalizedHistory = draft.history.map((h: any) => normalizeToMultiDoor(h));
+
         set({
           isMultiDoor: isMultiDoor,
-          refrigerators: draftRefrigerators,
-          refrigerator: draftRefrigerator,
-          history: draft.history,
+          refrigerators: draftNormalized,
+          refrigerator: draftNormalized['door-1'] || {},
+          history: normalizedHistory,
           historyIndex: draft.historyIndex,
           currentLayoutId: layoutId,
           hasPendingDraft: true,
@@ -787,64 +814,60 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
           },
           syncStatus: 'idle',
           selectedItemId: null
-        });        toast.success('Draft found! You can restore your previous work.', { duration: 4000 });
+        });
+
+        toast.success('Draft found!', { duration: 4000 });
       } else {
         // No draft - use initial layout
-        const refrigerators = isMultiDoor 
+        const refrigerators = isMultiDoor
           ? layoutData.doors.reduce((acc: any, door: any) => {
-              acc[door.id] = door.layout;
-              return acc;
-            }, {})
-          : { 'door-1': initialLayout };
-        
-        // CRITICAL FIX: Store correct data in history based on mode
-        const historyData = isMultiDoor ? refrigerators : initialLayout;
-        const refrigeratorData = isMultiDoor ? (refrigerators['door-1'] || {}) : initialLayout;
-        
+            acc[door.id] = door.layout;
+            return acc;
+          }, {})
+          : normalizeToMultiDoor(initialLayout);
+
         set({
           isMultiDoor: isMultiDoor,
           refrigerators: refrigerators,
-          refrigerator: refrigeratorData,
-          history: [JSON.parse(JSON.stringify(historyData))],
+          refrigerator: refrigerators['door-1'] || {},
+          history: [JSON.parse(JSON.stringify(refrigerators))],
           historyIndex: 0,
           currentLayoutId: layoutId,
           hasPendingDraft: false,
           draftMetadata: null,
           syncStatus: 'idle',
-          selectedItemId: null        });
+          selectedItemId: null
+        });
       }
-    },    switchLayout: (layoutId: string, newLayout: Refrigerator, layoutData?: any) => {
+    }, switchLayout: (layoutId: string, newLayout: Refrigerator | MultiDoorRefrigerator, layoutData?: any) => {
       const state = get();
-        // Save current layout first - CRITICAL FIX: Save correct data based on mode
+
+      // Save current layout first - always save as MultiDoorRefrigerator format
       if (state.currentLayoutId) {
-        // Save multi-door data if in multi-door mode, otherwise save single-door data
-        const dataToSave = state.isMultiDoor ? state.refrigerators : state.refrigerator;
         saveToLocalStorage(
-          dataToSave,
+          state.refrigerators,
           state.history,
           state.historyIndex,
           state.currentLayoutId
         );
       }
-      
+
       // Check if this is a multi-door layout
       const isMultiDoor = layoutData?.doorCount && layoutData?.doorCount > 1;
-        // Load new layout
+
+      // Load new layout
       const draft = loadFromLocalStorage(layoutId);
-        if (draft) {
-        // Draft exists for new layout
-        const draftRefrigerators = isMultiDoor 
-          ? (draft.refrigerator as MultiDoorRefrigerator) 
-          : { 'door-1': draft.refrigerator as Refrigerator };
-          const draftRefrigerator = isMultiDoor
-          ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
-          : draft.refrigerator as Refrigerator;
-        
+
+      if (draft) {
+        // Draft exists - normalize it
+        const draftNormalized = normalizeToMultiDoor(draft.refrigerator);
+        const normalizedHistory = draft.history.map((h: any) => normalizeToMultiDoor(h));
+
         set({
           isMultiDoor: isMultiDoor,
-          refrigerators: draftRefrigerators,
-          refrigerator: draftRefrigerator,
-          history: draft.history,
+          refrigerators: draftNormalized,
+          refrigerator: draftNormalized['door-1'] || {},
+          history: normalizedHistory,
           historyIndex: draft.historyIndex,
           currentLayoutId: layoutId,
           hasPendingDraft: true,
@@ -853,61 +876,54 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
             timestamp: draft.timestamp
           },
           selectedItemId: null
-        });        toast.success('Draft found for this layout!', { duration: 3000 });
+        });
+
+        toast.success('Draft found for this layout!', { duration: 3000 });
       } else {
         // No draft - use initial layout
-        const refrigerators = isMultiDoor 
+        const refrigerators = isMultiDoor
           ? layoutData.doors.reduce((acc: any, door: any) => {
-              acc[door.id] = door.layout;
-              return acc;
-            }, {})
-          : { 'door-1': newLayout };
-        
-        // CRITICAL FIX: Store correct data in history based on mode
-        const historyData = isMultiDoor ? refrigerators : newLayout;
-        const refrigeratorData = isMultiDoor ? (refrigerators['door-1'] || {}) : newLayout;
-        
+            acc[door.id] = door.layout;
+            return acc;
+          }, {})
+          : normalizeToMultiDoor(newLayout);
+
         set({
           isMultiDoor: isMultiDoor,
           refrigerators: refrigerators,
-          refrigerator: refrigeratorData,
-          history: [JSON.parse(JSON.stringify(historyData))],
+          refrigerator: refrigerators['door-1'] || {},
+          history: [JSON.parse(JSON.stringify(refrigerators))],
           historyIndex: 0,
           currentLayoutId: layoutId,
           hasPendingDraft: false,
           draftMetadata: null,
-          selectedItemId: null        });
+          selectedItemId: null
+        });
       }
-    },
-      restoreDraft: () => {
+    }, restoreDraft: () => {
       const state = get();
-      
+
       if (!state.currentLayoutId) {
         toast.error('No layout loaded');
         return;
       }
-      
+
       // Load draft from localStorage
       const draft = loadFromLocalStorage(state.currentLayoutId);
-      
+
       if (!draft) {
         toast.error('No draft found to restore');
         return;
       }
-        // Restore the draft data
-      const isMultiDoor = state.isMultiDoor;
-      const draftRefrigerators = isMultiDoor 
-        ? (draft.refrigerator as MultiDoorRefrigerator) 
-        : { 'door-1': draft.refrigerator as Refrigerator };
-      
-      const draftRefrigerator = isMultiDoor
-        ? (draft.refrigerator as MultiDoorRefrigerator)['door-1'] || {}
-        : draft.refrigerator as Refrigerator;
-      
+
+      // Normalize draft data
+      const draftNormalized = normalizeToMultiDoor(draft.refrigerator);
+      const normalizedHistory = draft.history.map((h: any) => normalizeToMultiDoor(h));
+
       set({
-        refrigerators: draftRefrigerators,
-        refrigerator: draftRefrigerator,
-        history: draft.history,
+        refrigerators: draftNormalized,
+        refrigerator: draftNormalized['door-1'] || {},
+        history: normalizedHistory,
         historyIndex: draft.historyIndex,
         hasPendingDraft: false,
         draftMetadata: null,
@@ -915,69 +931,74 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         lastSynced: new Date(),
         selectedItemId: null
       });
-      
+
       toast.success('Draft restored successfully!');
-      
+
       // Reset sync status after 2 seconds
       setTimeout(() => {
         set({ syncStatus: 'idle' });
       }, 2000);
     },
-    
+
     dismissDraft: () => {
       const state = get();
-      
+
       // Delete draft from localStorage
       if (state.currentLayoutId) {
         clearLocalStorage(state.currentLayoutId);
       }
-      
+
       // Keep current state, just clear the prompt
       set({
         hasPendingDraft: false,
         draftMetadata: null
       });
-      
+
       toast.success('Draft dismissed');
-    },
-      clearDraft: () => {
+    }, clearDraft: () => {
       set(state => {
-        // Create empty refrigerator (keep structure, clear all stacks)
-        const emptyFridge = produce(state.refrigerator, draft => {
-          Object.keys(draft).forEach(rowId => {
-            draft[rowId].stacks = [];
+        // Create empty refrigerators (keep structure, clear all stacks)
+        const emptyRefrigerators: MultiDoorRefrigerator = {};
+
+        for (const doorId in state.refrigerators) {
+          emptyRefrigerators[doorId] = produce(state.refrigerators[doorId], draft => {
+            Object.keys(draft).forEach(rowId => {
+              draft[rowId].stacks = [];
+            });
           });
-        });
-        
+        }
+
         // CLEAR localStorage completely (true clear - no undo)
         if (state.currentLayoutId) {
           clearLocalStorage(state.currentLayoutId);
         }
-        
+
         // Reset to fresh history state (cannot undo clear)
         return {
-          refrigerator: emptyFridge,
-          history: [produce(emptyFridge, () => {})], // Fresh history with only empty state
+          refrigerators: emptyRefrigerators,
+          refrigerator: emptyRefrigerators['door-1'] || {},
+          history: [produce(emptyRefrigerators, () => { })], // Fresh history with only empty state
           historyIndex: 0,
           selectedItemId: null,
           hasPendingDraft: false,
           draftMetadata: null
         };
-      });      
+      });
+
       toast.success('All items cleared - cannot undo', { duration: 3000 });
     },
-    
+
     manualSync: () => {
       const state = get();
-      
+
       if (!state.currentLayoutId) {
         toast.error('No layout loaded');
         return;
       }
-      
+
       // Set syncing status
       set({ syncStatus: 'syncing' });
-      
+
       // Save immediately (no debounce)
       saveToLocalStorage(
         state.refrigerator,
@@ -985,16 +1006,16 @@ export const usePlanogramStore = create<PlanogramState>((set, get) => ({
         state.historyIndex,
         state.currentLayoutId
       );
-      
+
       // Simulate brief delay for UX (500ms)
       setTimeout(() => {
-        set({ 
+        set({
           syncStatus: 'synced',
           lastSynced: new Date()
         });
-        
+
         toast.success('Changes synced!');
-        
+
         // Reset to idle after 2 seconds
         setTimeout(() => {
           set({ syncStatus: 'idle' });

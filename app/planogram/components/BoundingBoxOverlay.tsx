@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { usePlanogramStore } from '@/lib/store';
 import { convertFrontendToBackend, convertMultiDoorFrontendToBackend, BackendProduct } from '@/lib/backend-transform';
 import { availableLayoutsData } from '@/lib/planogram-data';
-import { getDoorConfigs } from '@/lib/multi-door-utils';
+import { getDoorConfigs, getDoorXOffset } from '@/lib/multi-door-utils';
 
 interface BoundingBoxOverlayProps {
   isVisible: boolean;
@@ -30,7 +30,6 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
     }
     return { width: 600, height: 800 };
   }, [selectedLayoutId]);
-
   // Generate backend data with bounding boxes and extract products
   // Backend uses ABSOLUTE coordinates (includes frame border + header offset)
   const { products, sections } = useMemo(() => {
@@ -40,6 +39,16 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
     if (isMultiDoor) {
       // Multi-door mode
       const doorConfigs = getDoorConfigs(layoutData);
+      console.log(`📐 Multi-Door Layout Info:`, {
+        layoutId: selectedLayoutId,
+        doorCount: doorConfigs.length,
+        doors: doorConfigs.map((d, i) => ({
+          id: d.id,
+          width: d.width,
+          xOffset: getDoorXOffset(doorConfigs, i)
+        }))
+      });
+      
       backendData = convertMultiDoorFrontendToBackend(
         refrigerators,
         doorConfigs,
@@ -58,25 +67,43 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
         16 // frameBorder
       );
     }
+      const allProducts: BackendProduct[] = [];
+    const allSections: Array<{ id: string; polygon: number[][] }> = [];    // Extract products from ALL doors (Door-1, Door-2, etc.)
+    Object.keys(backendData.Cooler).forEach((doorKey) => {
+      const door = backendData.Cooler[doorKey];
+      if (door && door.Sections) {
+        console.log(`🚪 Extracting from ${doorKey}:`, {
+          sectionCount: door.Sections.length,
+          productCount: door.Sections.reduce((sum, s) => sum + (s.products?.length || 0), 0)
+        });
+        
+        door.Sections.forEach((section, sectionIndex) => {
+          if (section.products) {
+            // Log first product from each door for coordinate debugging
+            if (sectionIndex === 0 && section.products.length > 0) {
+              const firstProduct = section.products[0];
+              const bbox = firstProduct['Bounding-Box'];
+              if (bbox && bbox.length === 4) {
+                console.log(`  📦 First product in ${doorKey}:`, {
+                  name: firstProduct.product,
+                  xLeft: bbox[0][0],
+                  xRight: bbox[2][0],
+                  yTop: bbox[0][1]
+                });
+              }
+            }
+            allProducts.push(...section.products);
+          }
+          if (section.data) {
+            allSections.push({
+              id: `${doorKey}-section-${sectionIndex + 1}`,
+              polygon: section.data
+            });
+          }
+        });
+      }
+    });
     
-    const allProducts: BackendProduct[] = [];
-    const allSections: Array<{ id: string; polygon: number[][] }> = [];
-
-    // Extract products from the nested structure
-    const door1 = backendData.Cooler['Door-1'];
-    if (door1 && door1.Sections) {
-      door1.Sections.forEach((section, sectionIndex) => {
-        if (section.products) {
-          allProducts.push(...section.products);
-        }
-        if (section.data) {
-          allSections.push({
-            id: `section-${sectionIndex + 1}`,
-            polygon: section.data
-          });
-        }
-      });
-    }
     return { products: allProducts, sections: allSections };
   }, [refrigerator, refrigerators, isMultiDoor, dimensions, headerHeight, grilleHeight, selectedLayoutId]);
 
@@ -99,8 +126,7 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
         const yTopAbsolute = bbox[0][1];
         const xRightAbsolute = bbox[2][0];
         const yBottomAbsolute = bbox[2][1];
-        
-        // CRITICAL: Convert to content-relative for rendering in overlay
+          // CRITICAL: Convert to content-relative for rendering in overlay
         // Backend added: frameBorder + headerHeight + shelfThickness (10px)
         // So we subtract: frameBorder + headerHeight + shelfThickness
         const xLeft = xLeftAbsolute - FRAME_OFFSET;
@@ -110,6 +136,15 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
 
         const width = xRight - xLeft;
         const height = yBottom - yTop;
+        
+        // Debug logging for first few products to verify coordinates
+        if (index < 3) {
+          console.log(`📦 Bounding Box #${index} (${product.product}):`, {
+            absolute: { xLeft: xLeftAbsolute, xRight: xRightAbsolute, yTop: yTopAbsolute },
+            relative: { xLeft, xRight, yTop },
+            size: { width, height }
+          });
+        }
 
         // Generate a color based on product index for variety
         const hue = (index * 137.5) % 360; // Golden angle for good color distribution
@@ -146,8 +181,7 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
               <circle cx="0" cy={height} r="2" fill={color} />
               <circle cx={width} cy={height} r="2" fill={color} />
             </svg>
-            
-            {/* Label with product name */}
+              {/* Label with product name */}
             <div
               className="absolute text-[9px] font-bold px-1 py-0.5 rounded pointer-events-none"
               style={{
@@ -158,9 +192,9 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
                 textShadow: '0 1px 2px rgba(0,0,0,0.5)',
                 whiteSpace: 'nowrap',
               }}
-              title={`${product['SKU-Code']} - ${width}×${height}px`}
+              title={`${product.product} (${product['SKU-Code']}) - ${width}×${height}px`}
             >
-              {product['SKU-Code'].substring(0, 12)}
+              {product.product || product['SKU-Code']}
             </div>
           </React.Fragment>
         );
@@ -225,20 +259,23 @@ export function BoundingBoxOverlay({ isVisible, selectedLayoutId, headerHeight, 
             {products.length > 0 && (
               <div className="bg-green-900/30 p-2 rounded border border-green-500/30">
                 <div className="text-green-300 font-semibold mb-1">📏 Product Sizes</div>
-                <div className="text-[10px] space-y-0.5 max-h-32 overflow-y-auto">
-                  {products.slice(0, 10).map((product, idx) => {
+                <div className="text-[10px] space-y-0.5 max-h-32 overflow-y-auto">                  {products.slice(0, 10).map((product, idx) => {
                     const bbox = product['Bounding-Box'];
                     if (!bbox || bbox.length !== 4) return null;
                     
                     const width = Math.round(bbox[2][0] - bbox[0][0]);
                     const height = Math.round(bbox[2][1] - bbox[0][1]);
                     
+                    // Use product name if available, otherwise full SKU code
+                    const displayName = product.product || product['SKU-Code'];
+                    const fullLabel = `${product.product} (${product['SKU-Code']})`;
+                    
                     return (
                       <div key={idx} className="flex justify-between gap-2">
-                        <span className="truncate flex-1" title={product['SKU-Code']}>
-                          {product['SKU-Code'].substring(0, 15)}...
+                        <span className="truncate flex-1" title={fullLabel}>
+                          {displayName}
                         </span>
-                        <span className="text-green-400 font-bold">
+                        <span className="text-green-400 font-bold whitespace-nowrap">
                           {width}×{height}
                         </span>
                       </div>

@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { usePlanogramStore } from '@/lib/store';
-import { Sku, Refrigerator, Item, LayoutData, DoorConfig } from '@/lib/types';
+import { Sku, Refrigerator, Item, LayoutData, DoorConfig, MultiDoorRefrigerator as MultiDoorRefrigeratorType } from '@/lib/types';
 import { SkuPalette } from './SkuPalette';
 import { RefrigeratorComponent } from './Refrigerator';
+import { MultiDoorRefrigerator } from './MultiDoorRefrigerator';
 import { PropertiesPanelMemo as PropertiesPanel } from './PropertiesPanel';
 import { InfoPanel } from './InfoPanel';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -364,7 +365,7 @@ interface PlanogramEditorProps {
   initialSkus: Sku[];
   initialLayout: Refrigerator;
   initialLayouts: { [key: string]: LayoutData };
-  importedLayout?: Refrigerator | null;
+  importedLayout?: Refrigerator | MultiDoorRefrigeratorType | null;
   importedLayoutId?: string | null; // <-- NEW: The layout ID that was detected
 }
 
@@ -376,12 +377,17 @@ export function PlanogramEditor({
   importedLayoutId = null // <-- NEW: Accept the detected layout ID
 }: PlanogramEditorProps) {
   const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+  const refrigerators = usePlanogramStore((state) => state.refrigerators);
+  const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const history = usePlanogramStore((state) => state.history);
   const historyIndex = usePlanogramStore((state) => state.historyIndex);
 
   const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
   const syncStatus = usePlanogramStore((state) => state.syncStatus);
   const lastSynced = usePlanogramStore((state) => state.lastSynced);
+
+  // --- NEW: Get pending data from store ---
+  const pendingImportedData = usePlanogramStore((state) => state.pendingImportedData);
 
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
@@ -399,19 +405,39 @@ export function PlanogramEditor({
   const [isLoading, setIsLoading] = useState(true);
   const [isCaptureLoading, setIsCaptureLoading] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
-
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  // NEW: Single initialization useEffect (Phase 9)
+
+  // --- UPDATED: Initialization useEffect ---
   useEffect(() => {
-    // 3. THIS IS THE MODIFIED LOGIC
-    if (importedLayout) {
-      // If an imported layout is provided, use it to initialize (force = true to bypass draft)
-      actions.initializeLayout(selectedLayoutId, importedLayout, true);
+    // Priority 1: Check for Pending Import from Store (Data coming from Upload Page)
+    if (pendingImportedData) {
+      console.log("🚀 Found pending imported data! Initializing...");
+
+      // Initialize the store with this data
+      actions.initializeLayout(
+        pendingImportedData.layoutId,
+        pendingImportedData.layout,
+        true, // forceInit = true (skip draft check)
+        pendingImportedData.layoutData
+      );
+
+      // Update local state for the dropdown
+      setSelectedLayoutId(pendingImportedData.layoutId);
       toast.success('Successfully imported planogram from image!');
+
+      // CLEAR the pending data so a refresh doesn't re-trigger it
+      actions.setPendingImport(null);
+
+    } else if (importedLayout) {
+      // Priority 2: Legacy direct props
+      const layoutData = initialLayouts[selectedLayoutId];
+      actions.initializeLayout(selectedLayoutId, importedLayout, true, layoutData);
+      // toast.success('Successfully imported planogram from image!');
     } else {
-      // Otherwise, use the default initialization (which checks localStorage)
-      actions.initializeLayout(selectedLayoutId, initialLayout);
+      // Priority 3: Default / Local Storage
+      const layoutData = initialLayouts[selectedLayoutId];
+      actions.initializeLayout(selectedLayoutId, initialLayout, false, layoutData);
     }
     // END OF MODIFICATION
 
@@ -449,28 +475,26 @@ export function PlanogramEditor({
   );  // Memoize expensive conflict detection computation
   useEffect(() => {
     if (isRulesEnabled) {
-      if (isMultiDoor && refrigerators && Object.keys(refrigerators).length > 0) {
-        const conflicts = findConflicts(refrigerators['door-1'] || {});
-        // For now, only check door-1. Full multi-door conflict detection would iterate all doors
-        setConflictIds(conflicts);
-      } else if (refrigerator && Object.keys(refrigerator).length > 0) {
-        const conflicts = findConflicts(refrigerator);
+      if (refrigerators && Object.keys(refrigerators).length > 0) {
+        // Check all doors for conflicts
+        const conflicts = findConflicts(refrigerators);
         setConflictIds(conflicts);
       }
     } else {
       setConflictIds([]);
     }
-  }, [refrigerator, isRulesEnabled]);
+  }, [refrigerators, isRulesEnabled]);
 
   // Dimension validation conflict detection
   useEffect(() => {
-    if (refrigerator && Object.keys(refrigerator).length > 0 && isDimensionValidationEnabled) {
-      const dimensionConflicts = findDimensionConflicts(refrigerator);
+    if (refrigerators && Object.keys(refrigerators).length > 0 && isDimensionValidationEnabled) {
+      // Check all doors for dimension conflicts
+      const dimensionConflicts = findDimensionConflicts(refrigerators);
       setDimensionConflictIds(dimensionConflicts);
     } else if (!isDimensionValidationEnabled) {
       setDimensionConflictIds([]);
     }
-  }, [refrigerator, isDimensionValidationEnabled]);
+  }, [refrigerators, isDimensionValidationEnabled]);
 
   // NEW: Update handler to use store action (Phase 10)
   const handleLayoutChange = useCallback((layoutId: string) => {
@@ -519,41 +543,61 @@ export function PlanogramEditor({
       draggedItem = activeData.items[0];
       if (draggedItem) {
         draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
-        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;
-        setActiveItem(draggedItem);
+        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable; setActiveItem(draggedItem);
       }
-    }    if (draggedItem) {
-      console.log('🎯 DRAG START DEBUG:', {
-        isMultiDoor,
-        refrigeratorKeys: Object.keys(refrigerator),
-        refrigeratorsKeys: Object.keys(refrigerators),
-        draggedItem: draggedItem.skuId
-      });
-      
-      // CRITICAL FIX: In multi-door mode, we need to validate against ALL doors
-      // For simplicity, we'll merge all doors' rows or validate against door-1
-      // Better approach: validate against the door we're hovering over (but we don't know yet at drag start)
-      const refrigeratorForValidation = isMultiDoor 
-        ? (refrigerators['door-1'] || refrigerator) 
-        : refrigerator;
-      
-      const validationResult = runValidation({
-        draggedItem,
-        draggedEntityHeight,
-        isSingleItemStackable,
-        activeDragId: active.id as string,
-        refrigerator: refrigeratorForValidation,
-        findStackLocation,
-        isRulesEnabled,
-      });
-      
-      console.log('📋 VALIDATION RESULT:', {
-        validRowIds: Array.from(validationResult?.validRowIds || []),
-        validStackTargetIds: Array.from(validationResult?.validStackTargetIds || []),
-        usingRefrigerator: isMultiDoor ? 'door-1' : 'single'
-      });
-      
-      setDragValidation(validationResult);
+    }
+
+    if (draggedItem) {
+      // In multi-door setup, validate ALL doors and merge results
+      // In single-door setup, validate only that door
+      if (isMultiDoor) {
+        // Multi-door: Run validation for each door and merge results
+        const allDoorIds = Object.keys(refrigerators);
+        const mergedValidRowIds = new Set<string>();
+        const mergedValidStackTargetIds = new Set<string>();
+
+        allDoorIds.forEach(doorId => {
+          const doorValidation = runValidation({
+            draggedItem,
+            draggedEntityHeight,
+            isSingleItemStackable,
+            activeDragId: active.id as string,
+            refrigerators,
+            doorId,
+            findStackLocation,
+            isRulesEnabled,
+          });
+
+          // Merge results from this door
+          if (doorValidation) {
+            doorValidation.validRowIds.forEach(id => mergedValidRowIds.add(id));
+            doorValidation.validStackTargetIds.forEach(id => mergedValidStackTargetIds.add(id));
+          }
+        });
+
+        const validationResult = {
+          validRowIds: mergedValidRowIds,
+          validStackTargetIds: mergedValidStackTargetIds
+        };
+
+        setDragValidation(validationResult);
+
+      } else {
+        // Single-door: Validate only the single door
+        const doorId = Object.keys(refrigerators)[0] || 'door-1';
+        const validationResult = runValidation({
+          draggedItem,
+          draggedEntityHeight,
+          isSingleItemStackable,
+          activeDragId: active.id as string,
+          refrigerators,
+          doorId,
+          findStackLocation,
+          isRulesEnabled,
+        });
+
+        setDragValidation(validationResult);
+      }
     }
   }, [actions, refrigerator, refrigerators, isMultiDoor, findStackLocation, isRulesEnabled]);
   // OPTIMIZATION: Store previous drop indicator to prevent unnecessary updates
@@ -590,14 +634,10 @@ export function PlanogramEditor({
       const activeId = active.id as string;
       const overId = over.id as string;
       const overType = over.data.current?.type;
-      const activeType = active.data.current?.type;
-
-      if (activeType === 'sku' || interactionMode === 'reorder') {
+      const activeType = active.data.current?.type; if (activeType === 'sku' || interactionMode === 'reorder') {
         let overRowId: string | undefined;
         let overDoorId: string | undefined;
-        let stackIndex: number | undefined;
-
-        if (overType === 'row') {
+        let stackIndex: number | undefined; if (overType === 'row') {
           // Extract doorId and rowId from composite ID (e.g., "door-1:row-1")
           overDoorId = over.data.current?.doorId;
           overRowId = over.data.current?.rowId || overId;
@@ -634,24 +674,19 @@ export function PlanogramEditor({
   }, [interactionMode, findStackLocation, dragValidation]);
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    const activeType = active.data.current?.type;    if (activeType === 'sku') {
+    const activeType = active.data.current?.type; if (activeType === 'sku') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
-        console.log('🔍 DROP DEBUG:', {
-          dropIndicator,
-          validRowIds: Array.from(dragValidation?.validRowIds || []),
-          hasValidation: !!dragValidation,
-          isValid: dragValidation?.validRowIds.has(dropIndicator.targetRowId)
-        });
-        
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
-          console.log('✅ Adding item from SKU');
+        // Build door-qualified row ID to match validation format
+        const qualifiedRowId = dropIndicator.targetDoorId
+          ? `${dropIndicator.targetDoorId}:${dropIndicator.targetRowId}`
+          : dropIndicator.targetRowId;
+
+        if (dragValidation && dragValidation.validRowIds.has(qualifiedRowId)) {
           actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index, dropIndicator.targetDoorId);
           setInvalidModeAttempts(0);
-        } else {
-          console.log('❌ Validation failed');
         }
       }
-    }else if (interactionMode === 'stack') {
+    } else if (interactionMode === 'stack') {
       if (dropIndicator?.type === 'stack') {
         actions.stackItem(active.id as string, dropIndicator.targetId);
         setInvalidModeAttempts(0);
@@ -661,10 +696,14 @@ export function PlanogramEditor({
         if (newAttemptCount >= 2) {
           setShowModePrompt(true);
         }
-      }
-    } else if (interactionMode === 'reorder') {
+      }    } else if (interactionMode === 'reorder') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId) {
-        if (dragValidation && dragValidation.validRowIds.has(dropIndicator.targetRowId)) {
+        // Build door-qualified row ID to match validation format
+        const qualifiedRowId = dropIndicator.targetDoorId 
+          ? `${dropIndicator.targetDoorId}:${dropIndicator.targetRowId}`
+          : dropIndicator.targetRowId;
+        
+        if (dragValidation && dragValidation.validRowIds.has(qualifiedRowId)) {
           const startLocation = findStackLocation(active.id as string);
           if (!startLocation || dropIndicator.index === undefined) return;
           
@@ -769,14 +808,12 @@ export function PlanogramEditor({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
               Discard
-            </button>
-
-            <button
+            </button>            <button
               onClick={async () => {
                 setIsCaptureLoading(true);
                 try {
-                  const { captureElementAsImage } = await import('@/lib/capture-utils');
-                  await captureElementAsImage('refrigerator-capture', 'planogram');
+                  const { captureRefrigeratorLayout } = await import('@/lib/capture-utils');
+                  await captureRefrigeratorLayout('planogram');
                 } catch (error) {
                   console.error('Capture failed:', error);
                   toast.error('Failed to capture image');
@@ -809,7 +846,7 @@ export function PlanogramEditor({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span>Capture</span>
+                  <span>Save</span>
                 </>
               )}
             </button>
@@ -834,7 +871,7 @@ export function PlanogramEditor({
               <LayoutSelector layouts={initialLayouts} selectedLayout={selectedLayoutId} onLayoutChange={handleLayoutChange} />
               <ModeToggle mode={interactionMode} setMode={handleModeChange} />
             </div>            <div className='justify-center items-center flex border bg-gray-200 rounded-sm pt-2'>
-              <RefrigeratorComponent
+              <MultiDoorRefrigerator
                 dragValidation={dragValidation}
                 dropIndicator={dropIndicator}
                 conflictIds={[
@@ -859,7 +896,7 @@ export function PlanogramEditor({
               <BackendStatePreview />
 
               {/* Frontend State Preview - Raw Store Data */}
-              <FrontendStatePreview />
+              {/* <FrontendStatePreview /> */}
             </div>
           </div>
         </div>
