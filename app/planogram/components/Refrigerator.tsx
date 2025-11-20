@@ -8,8 +8,12 @@ import { DropIndicator, DragValidation } from './planogramEditor';
 import { layouts } from '@/lib/planogram-data';
 import { PIXELS_PER_MM } from '@/lib/config';
 import { BoundingBoxOverlay } from './BoundingBoxOverlay';
+import { DoorConfig } from '@/lib/types';
 
 interface RefrigeratorComponentProps {
+  doorId?: string;
+  doorIndex?: number;
+  doorConfig?: DoorConfig;
   dropIndicator: DropIndicator;
   dragValidation: DragValidation;
   conflictIds: string[];
@@ -25,6 +29,9 @@ export const DEFAULT_GRILLE_HEIGHT = 90; // px
 export const FRAME_BORDER = 16; // px
 
 export function RefrigeratorComponent({ 
+  doorId,
+  doorIndex = 0,
+  doorConfig,
   dropIndicator, 
   dragValidation, 
   conflictIds, 
@@ -33,33 +40,44 @@ export function RefrigeratorComponent({
   headerHeight = DEFAULT_HEADER_HEIGHT,
   grilleHeight = DEFAULT_GRILLE_HEIGHT
 }: RefrigeratorComponentProps) {
-  const refrigerator = usePlanogramStore((state) => state.refrigerator);
-  const sortedRowIds = useMemo(() => Object.keys(refrigerator).sort(), [refrigerator]);
-
-  // Get EXACT dimensions from layout - these are the REAL internal dimensions
+  const { refrigerator, refrigerators, isMultiDoor } = usePlanogramStore();
+  // Get the correct refrigerator data based on door mode
+  const currentRefrigerator = useMemo(() => {
+    if (isMultiDoor && doorId && refrigerators[doorId]) {
+      return refrigerators[doorId];
+    }
+    return refrigerator;
+  }, [isMultiDoor, doorId, refrigerators, refrigerator]);
+  
+  const sortedRowIds = useMemo(() => Object.keys(currentRefrigerator).sort(), [currentRefrigerator]);
+  // Get EXACT dimensions from layout or door config
   const dimensions = useMemo(() => {
+    if (doorConfig) {
+      return { width: doorConfig.width, height: doorConfig.height, name: doorConfig.id };
+    }
     const layout = layouts[selectedLayoutId as keyof typeof layouts];
     if (layout) {
-      return { width: layout.width, height : layout.height , name : layout.name};
+      // Handle both single-door and multi-door layouts
+      const width = layout.width || (layout.doors?.[0]?.width ?? 600);
+      const height = layout.height || (layout.doors?.[0]?.height ?? 800);
+      return { width, height, name: layout.name };
     }
     return { width: 600, height: 800, name: 'Default' };
-  }, [selectedLayoutId]);
-
+  }, [selectedLayoutId, doorConfig]);
   // Calculate total height from actual row heights
   const totalHeight = useMemo(() => {
-    return Object.values(refrigerator).reduce((sum, row) => sum + row.maxHeight, 0);
-  }, [refrigerator]);
-
+    return Object.values(currentRefrigerator).reduce((sum, row) => sum + row.maxHeight, 0);
+  }, [currentRefrigerator]);
   const hasItems = useMemo(() => 
-    sortedRowIds.some(rowId => refrigerator[rowId].stacks.length > 0),
-    [sortedRowIds, refrigerator]
+    sortedRowIds.some(rowId => currentRefrigerator[rowId].stacks.length > 0),
+    [sortedRowIds, currentRefrigerator]
   );
-
   // NEW: Calculate vertical offset for products (header pushes content down)
   const contentYOffset = headerHeight;
 
   return (
-    <div id="refrigerator-capture" className="inline-flex flex-col shadow-2xl">
+    <div id="refrigerator-layout" className="inline-flex flex-col shadow-2xl">
+      <div id="refrigerator-capture" className="inline-flex flex-col">
       {/* Outer Frame - Dark border like real fridge */}
       <div 
         className="bg-gradient-to-br from-gray-900 via-gray-800 to-black rounded-none p-4 shadow-2xl"
@@ -106,13 +124,13 @@ export function RefrigeratorComponent({
               </div>
             </div>
           )}
-          
           {/* Rows - Each uses exact height from row.maxHeight */}
           <div className="flex flex-col">
             {sortedRowIds.map((rowId) => (
               <RowComponent
                 key={rowId}
-                row={refrigerator[rowId]}
+                row={currentRefrigerator[rowId]}
+                doorId={doorId}
                 dropIndicator={dropIndicator}
                 dragValidation={dragValidation}
                 conflictIds={conflictIds}
@@ -145,8 +163,8 @@ export function RefrigeratorComponent({
                 className="h-1 bg-gradient-to-r from-transparent via-gray-700 to-transparent rounded-full"
               />
             ))}
-          </div>
-        </div>
+          </div>        </div>
+      </div>
       </div>
     </div>
   );

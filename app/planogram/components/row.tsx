@@ -10,6 +10,7 @@ import clsx from 'clsx';
 
 interface RowProps {
   row: RowType;
+  doorId?: string;
   dropIndicator: DropIndicator;
   dragValidation: DragValidation;
   conflictIds: string[];
@@ -17,29 +18,38 @@ interface RowProps {
 
 export const RowComponent = React.memo(function RowComponent({ 
   row, 
+  doorId,
   dropIndicator, 
   dragValidation, 
   conflictIds 
 }: RowProps) {
+  // Create door-specific droppable ID
+  const droppableId = doorId ? `${doorId}:${row.id}` : row.id;
+  
   const { setNodeRef, isOver } = useDroppable({ 
-    id: row.id, 
-    data: { type: 'row', items: row.stacks } 
+    id: droppableId, 
+    data: { type: 'row', rowId: row.id, doorId: doorId, items: row.stacks } 
   });
   
   const stackIds = useMemo(
     () => row.stacks.map(stack => stack[0]?.id).filter(Boolean),
     [row.stacks]
   );
-  
-  const showGhost = useMemo(
-    () => dropIndicator?.type === 'reorder' && dropIndicator.targetRowId === row.id,
-    [dropIndicator, row.id]
+    const showGhost = useMemo(
+    () => dropIndicator?.type === 'reorder' && 
+          dropIndicator.targetRowId === row.id &&
+          dropIndicator.targetDoorId === doorId,
+    [dropIndicator, row.id, doorId]
   );
-
   const isDragging = !!dragValidation;
   const isValidRowTarget = useMemo(
-    () => isDragging && dragValidation?.validRowIds.has(row.id),
-    [isDragging, dragValidation, row.id]
+    () => {
+      if (!isDragging || !dragValidation) return false;
+      // Check for door-qualified row ID (e.g., "door-1:row-3")
+      const qualifiedRowId = doorId ? `${doorId}:${row.id}` : row.id;
+      return dragValidation.validRowIds.has(qualifiedRowId);
+    },
+    [isDragging, dragValidation, row.id, doorId]
   );
   
   const hasValidStackTargets = useMemo(
