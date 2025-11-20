@@ -349,18 +349,18 @@ export function convertMultiDoorFrontendToBackend(
             productName: frontProductFE.name
           });
         }
-        
-        let cumulativeHeight = 0;
-
-        // Process stacked items
+          let cumulativeHeight = 0;        // Process stacked items
         const backendStackedProducts: BackendProduct[] = stackedProductsFE.map((feProduct: Item): BackendProduct | null => {
+          // For multi-door: xPosition already includes doorXOffset (which has frameBorder)
+          // Subtract frameBorder before calling generateBoundingBox, which adds it back
+          // Result: X offset remains correct (no double-add), Y offset gets frameBorder + headerHeight + 10
           const boundingBox = generateBoundingBox(
             feProduct,
-            xPosition, // Already includes door offset
+            xPosition - frameBorder, // Compensate for frameBorder already in doorXOffset
             rowMeta.yStart,
             cumulativeHeight,
             rowMeta.maxHeight,
-            0,           // No additional frame offset (already in doorXOffset)
+            frameBorder, // This adds back to X (net zero) and to Y (needed for alignment)
             headerHeight
           );
           
@@ -376,17 +376,15 @@ export function convertMultiDoorFrontendToBackend(
             "Bounding-Box": boundingBox,
             width: feProduct.width,
             height: feProduct.height,
-          };
-        }).filter((p): p is BackendProduct => p !== null);
-
-        // Front product
+          };        }).filter((p): p is BackendProduct => p !== null);        // Front product
+        // Same logic: subtract frameBorder from xPosition to prevent double-offset on X-axis
         const frontBoundingBox = generateBoundingBox(
           frontProductFE,
-          xPosition,
+          xPosition - frameBorder, // Compensate for frameBorder already in doorXOffset
           rowMeta.yStart,
           cumulativeHeight,
           rowMeta.maxHeight,
-          0,           // No additional frame offset
+          frameBorder, // This adds back to X (net zero) and to Y (needed for alignment)
           headerHeight
         );
 
