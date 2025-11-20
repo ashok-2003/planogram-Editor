@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Refrigerator, LayoutData, MultiDoorRefrigerator } from '@/lib/types';
-import { useRouter } from 'next/navigation'; // <--- ADDED for redirection
-import { usePlanogramStore } from '@/lib/store'; // <--- ADDED for state bridge
+import { useRouter } from 'next/navigation';
+import { usePlanogramStore } from '@/lib/store';
 
 // Import the AI data type
 import {
@@ -44,9 +44,23 @@ import { cn } from '@/lib/utils';
 // --- Loader State Type ---
 type UploadStep = 'idle' | 'uploading' | 'processing' | 'complete';
 
+// --- NEW HELPER: Calculate total shelves for a layout ---
+// This handles both single-door and multi-door layouts dynamically
+const getLayoutShelfCount = (layout: LayoutData): number => {
+    if (layout.doors && layout.doors.length > 0) {
+        // Multi-door: sum shelves across all doors
+        return layout.doors.reduce((sum, door) => {
+            return sum + (door.layout ? Object.keys(door.layout).length : 0);
+        }, 0);
+    } else if (layout.layout) {
+        // Single-door: count rows in layout
+        return Object.keys(layout.layout).length;
+    }
+    return 0;
+};
+
 // --- REFACTORED: UploadForm Component ---
 
-// Helper map for loader text
 const loaderTextMap: Record<UploadStep, string> = {
     idle: '',
     uploading: 'Uploading your image...',
@@ -240,19 +254,21 @@ function UploadForm({
     );
 }
 
-// --- Layout Picker Dialog ---
+// --- UPDATED: Layout Picker Dialog ---
 function LayoutPicker({
     layouts,
     onSelectLayout,
     onCancel,
     isNoMatch = false,
     detectedShelfCount,
+    recommendedLayoutId, // <--- NEW PROP: Receives the dynamic recommendation
 }: {
     layouts: Array<{ id: string; layout: LayoutData }>;
     onSelectLayout: (layout: LayoutData, layoutId: string) => void;
     onCancel: () => void;
     isNoMatch?: boolean;
     detectedShelfCount?: number;
+    recommendedLayoutId?: string | null; // <--- Typed here
 }) {
     return (
         <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
@@ -260,16 +276,16 @@ function LayoutPicker({
                 <DialogHeader>
                     <DialogTitle>
                         {isNoMatch
-                            ? '⚠️ No Matching Cooler Configuration'
+                            ? '⚠️ No Exact Match Found'
                             : 'Multiple Layouts Found'}
                     </DialogTitle>
                     <DialogDescription>
                         {isNoMatch ? (
                             <>
                                 Your image has <strong>{detectedShelfCount} shelves</strong>, but
-                                we don't have a cooler configuration that matches. Please choose
-                                a cooler model to continue. The AI-detected products will be
-                                placed accordingly.
+                                we don't have an exact match.
+                                <br />
+                                We recommended the closest available layout below.
                             </>
                         ) : (
                             `We found ${layouts.length} layouts with the same number of shelves. Please choose the one that best matches your image.`
@@ -277,45 +293,59 @@ function LayoutPicker({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-4 max-h-60 overflow-y-auto">
-                    {layouts.map(({ id, layout }) => (
-                        <Button
-                            key={id}
-                            variant={isNoMatch && id === 'g-26c' ? 'default' : 'outline'}
-                            className="w-full justify-start h-auto"
-                            onClick={() => onSelectLayout(layout, id)}
-                        >
-                            <div className="text-left">
-                                <p className="font-semibold">
-                                    {layout.name}
-                                    {isNoMatch && id === 'g-26c' && ' (Recommended)'}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    {(() => {
-                                        let shelfCount = 0;
-                                        let doorCount = 1;
-                                        let widthInfo = 'Unknown';
+                    {layouts.map(({ id, layout }) => {
+                        // Check if this specific item is the recommended one
+                        const isRecommended = recommendedLayoutId === id;
 
-                                        if (layout.doors && layout.doors.length > 0) {
-                                            doorCount = layout.doors.length;
-                                            shelfCount = layout.doors.reduce((sum, door) => {
-                                                return sum + (door.layout ? Object.keys(door.layout).length : 0);
-                                            }, 0);
-                                            const totalWidth = layout.doors.reduce((sum, door) => {
-                                                return sum + (door.width || 0);
-                                            }, 0);
-                                            widthInfo = totalWidth > 0 ? `${totalWidth}px` : (layout.width ? `${layout.width}px` : 'Unknown');
-                                        } else if (layout.layout) {
-                                            shelfCount = Object.keys(layout.layout).length;
-                                            widthInfo = layout.width ? `${layout.width}px` : 'Unknown';
-                                        }
+                        return (
+                            <Button
+                                key={id}
+                                // If this is the recommended one, highlight it (default variant), else outline
+                                variant={isRecommended ? 'default' : 'outline'}
+                                className={cn(
+                                    "w-full justify-start h-auto",
+                                    // Add a subtle ring if recommended to make it pop
+                                    isRecommended && "ring-2 ring-offset-2 ring-blue-500"
+                                )}
+                                onClick={() => onSelectLayout(layout, id)}
+                            >
+                                <div className="text-left w-full">
+                                    <div className="flex justify-between items-center">
+                                        <p className="font-semibold">
+                                            {layout.name}
+                                        </p>
+                                        {isRecommended && (
+                                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
+                                                Recommended
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {(() => {
+                                            // Use the helper for consistency
+                                            const shelfCount = getLayoutShelfCount(layout);
 
-                                        const doorInfo = doorCount > 1 ? ` | ${doorCount} Doors` : '';
-                                        return `${shelfCount} Shelves${doorInfo} | ${widthInfo} wide`;
-                                    })()}
-                                </p>
-                            </div>
-                        </Button>
-                    ))}
+                                            let widthInfo = 'Unknown';
+                                            let doorCount = 1;
+
+                                            if (layout.doors && layout.doors.length > 0) {
+                                                doorCount = layout.doors.length;
+                                                const totalWidth = layout.doors.reduce((sum, door) => {
+                                                    return sum + (door.width || 0);
+                                                }, 0);
+                                                widthInfo = totalWidth > 0 ? `${totalWidth}px` : (layout.width ? `${layout.width}px` : 'Unknown');
+                                            } else if (layout.layout) {
+                                                widthInfo = layout.width ? `${layout.width}px` : 'Unknown';
+                                            }
+
+                                            const doorInfo = doorCount > 1 ? ` | ${doorCount} Doors` : '';
+                                            return `${shelfCount} Shelves${doorInfo} | ${widthInfo} wide`;
+                                        })()}
+                                    </p>
+                                </div>
+                            </Button>
+                        );
+                    })}
                 </div>
             </DialogContent>
         </Dialog>
@@ -324,8 +354,8 @@ function LayoutPicker({
 
 // --- UPDATED: Main Page Component ---
 export default function UploadPlanogramPage() {
-    const router = useRouter(); // <--- ADDED: Router hook
-    const { actions } = usePlanogramStore(); // <--- ADDED: Store hook
+    const router = useRouter();
+    const { actions } = usePlanogramStore();
 
     const [uploadStep, setUploadStep] = useState<UploadStep>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -338,6 +368,9 @@ export default function UploadPlanogramPage() {
     const [showLayoutPicker, setShowLayoutPicker] = useState(false);
     const [detectedShelfCount, setDetectedShelfCount] = useState<number>(0);
     const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);
+
+    // NEW STATE: Store the ID of the closest match
+    const [recommendedLayoutId, setRecommendedLayoutId] = useState<string | null>(null);
 
     /**
      * Finishes the conversion process once a layout is chosen.
@@ -374,8 +407,7 @@ export default function UploadPlanogramPage() {
                 );
             }
 
-            // --- CRITICAL UPDATE: SAVE TO STORE AND REDIRECT ---
-            // Instead of setting local state to render Editor, we save to global store
+            // Save to store and navigate
             actions.setPendingImport({
                 layoutId: layoutId,
                 layout: layoutToStore,
@@ -384,7 +416,7 @@ export default function UploadPlanogramPage() {
 
             setUploadStep('idle');
             toast.success("Planogram generated! Redirecting...");
-            router.push('/planogram'); // <--- Navigate to Planogram Page
+            router.push('/planogram');
 
         } catch (err: any) {
             console.error(err);
@@ -400,6 +432,7 @@ export default function UploadPlanogramPage() {
         setAiData(null);
         setMatchingLayouts([]);
         setShowLayoutPicker(false);
+        setRecommendedLayoutId(null); // Reset recommendation
         toast.info('Uploading image...');
 
         try {
@@ -481,7 +514,7 @@ export default function UploadPlanogramPage() {
             console.log('--- AI Data Received ---', fetchedAiData);
             setAiData(fetchedAiData);
 
-            // --- Step 3: Find Matching Layouts ---
+            // --- Step 3: Determine Shelf Count ---
             const isMultiDoorData = isMultiDoorAIData(fetchedAiData);
             let totalShelfCount = 0;
 
@@ -501,47 +534,63 @@ export default function UploadPlanogramPage() {
 
             setDetectedShelfCount(totalShelfCount);
 
+            // --- Step 4: Filter Exact Matches ---
             const matches: Array<{ id: string; layout: LayoutData }> = Object.entries(
                 availableLayoutsData
             )
                 .filter(([_, layout]) => {
-                    if (layout.doors && layout.doors.length > 0) {
-                        const layoutTotalShelves = layout.doors.reduce((sum, door) => {
-                            return sum + (door.layout ? Object.keys(door.layout).length : 0);
-                        }, 0);
-                        return layoutTotalShelves === totalShelfCount;
-                    } else if (layout.layout) {
-                        return Object.keys(layout.layout).length === totalShelfCount;
-                    }
-                    return false;
+                    // Use the new helper for consistent counting
+                    return getLayoutShelfCount(layout) === totalShelfCount;
                 })
                 .map(([id, layout]) => ({ id, layout }));
 
             console.log(
-                `[Layout Match] AI has ${totalShelfCount} total shelves. Found ${matches.length} matching layouts.`
+                `[Layout Match] AI has ${totalShelfCount} total shelves. Found ${matches.length} exact matches.`
             );
 
-            if (matches.length === 0) {
-                const allLayouts = Object.entries(availableLayoutsData).map(
-                    ([id, layout]) => ({ id, layout })
-                );
-                toast.warning(`No cooler configuration matches ${totalShelfCount} shelves.`, {
-                    description: 'Please choose a cooler model to continue.',
-                });
-                setMatchingLayouts(allLayouts);
-                setIsNoMatchScenario(true);
-                setShowLayoutPicker(true);
-                setUploadStep('idle');
-                return;
-            }
-
+            // --- Step 5: Handle Match Scenarios ---
             if (matches.length === 1) {
+                // PERFECT MATCH: Proceed automatically
                 processConversion(fetchedAiData, matches[0].layout, matches[0].id);
-            } else {
+            }
+            else if (matches.length > 0) {
+                // MULTIPLE EXACT MATCHES: Let user choose
                 setMatchingLayouts(matches);
                 setIsNoMatchScenario(false);
                 setShowLayoutPicker(true);
                 setUploadStep('idle');
+            }
+            else {
+                // NO EXACT MATCH: Find the Closest Match Algorithm
+                const allLayouts = Object.entries(availableLayoutsData).map(
+                    ([id, layout]) => ({ id, layout })
+                );
+
+                let closestLayoutId = null;
+                let minDifference = Infinity;
+
+                // Loop through all layouts to find the smallest difference in shelf count
+                allLayouts.forEach(({ id, layout }) => {
+                    const layoutShelves = getLayoutShelfCount(layout);
+                    const diff = Math.abs(layoutShelves - totalShelfCount);
+
+                    if (diff < minDifference) {
+                        minDifference = diff;
+                        closestLayoutId = id;
+                    }
+                });
+
+                console.log(`[Layout Match] No exact match. Closest is ${closestLayoutId} with diff ${minDifference}`);
+
+                setRecommendedLayoutId(closestLayoutId); // Save the best match ID
+                setMatchingLayouts(allLayouts); // Show all options
+                setIsNoMatchScenario(true); // Flag as no match
+                setShowLayoutPicker(true); // Open dialog
+                setUploadStep('idle');
+
+                toast.warning(`No cooler configuration matches ${totalShelfCount} shelves.`, {
+                    description: 'We have recommended the closest matching model.',
+                });
             }
         } catch (err: any) {
             console.error(err);
@@ -562,6 +611,7 @@ export default function UploadPlanogramPage() {
                     layouts={matchingLayouts}
                     isNoMatch={isNoMatchScenario}
                     detectedShelfCount={detectedShelfCount}
+                    recommendedLayoutId={recommendedLayoutId} // <-- Pass the recommended ID
                     onCancel={() => {
                         setShowLayoutPicker(false);
                         setAiData(null);
