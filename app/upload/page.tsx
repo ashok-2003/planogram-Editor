@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, DragEvent } from 'react'; // Updated React imports
-import { PlanogramEditor } from '@/app/planogram/components/planogramEditor';
-// import { Spinner } from '@/app/planogram/components/Skeletons'; // No longer needed
+import { useState, useRef, useEffect, DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Refrigerator, Sku, LayoutData, MultiDoorRefrigerator } from '@/lib/types';
+import { Refrigerator, LayoutData, MultiDoorRefrigerator } from '@/lib/types';
+import { useRouter } from 'next/navigation'; // <--- ADDED for redirection
+import { usePlanogramStore } from '@/lib/store'; // <--- ADDED for state bridge
+
 // Import the AI data type
 import {
     convertBackendToFrontend,
@@ -24,7 +25,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
-// --- NEW IMPORTS for Premium UI ---
+// --- UI Components ---
 import {
     Card,
     CardContent,
@@ -34,19 +35,16 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-    // Image as ImageIcon, // Replaced with UploadCloud
-    UploadCloud, // A more "SaaS" icon
-    Sparkles, // A more "AI" icon
+    UploadCloud,
+    Sparkles,
     X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// --- NEW: Loader State Type ---
+// --- Loader State Type ---
 type UploadStep = 'idle' | 'uploading' | 'processing' | 'complete';
 
-// --- (Previous PremiumUploadLoader component removed, as it's now integrated) ---
-
-// --- REFACTORED: UploadForm Component (Sophisticated Version) ---
+// --- REFACTORED: UploadForm Component ---
 
 // Helper map for loader text
 const loaderTextMap: Record<UploadStep, string> = {
@@ -58,10 +56,10 @@ const loaderTextMap: Record<UploadStep, string> = {
 
 function UploadForm({
     onSubmit,
-    uploadStep, // Changed from isLoading
+    uploadStep,
 }: {
     onSubmit: (file: File) => void;
-    uploadStep: UploadStep; // Use the new type
+    uploadStep: UploadStep;
 }) {
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -71,7 +69,6 @@ function UploadForm({
     const isLoading = uploadStep !== 'idle';
     const currentLoaderText = loaderTextMap[uploadStep];
 
-    // Clean up object URL to prevent memory leaks
     useEffect(() => {
         return () => {
             if (previewUrl) {
@@ -83,12 +80,10 @@ function UploadForm({
     const handleFileSelect = (selectedFile: File | undefined | null) => {
         if (!selectedFile || isLoading) return;
 
-        // Revoke old URL if one exists
         if (previewUrl) {
             URL.revokeObjectURL(previewUrl);
         }
 
-        // Check if it's an image
         if (!selectedFile.type.startsWith('image/')) {
             toast.error('Invalid file type. Please upload an image.');
             setFile(null);
@@ -128,9 +123,9 @@ function UploadForm({
     const removeFile = () => {
         if (isLoading) return;
         setFile(null);
-        setPreviewUrl(null); // This will trigger the useEffect cleanup
+        setPreviewUrl(null);
         if (fileInputRef.current) {
-            fileInputRef.current.value = ''; // Reset the input field
+            fileInputRef.current.value = '';
         }
     };
 
@@ -148,7 +143,6 @@ function UploadForm({
             <Card
                 className={cn(
                     'max-w-md w-full rounded-2xl shadow-2xl transition-all',
-                    // More pronounced "A-tier" drag-over effect
                     isDragging &&
                     !isLoading &&
                     'ring-2 ring-blue-500 ring-offset-2 shadow-blue-500/20'
@@ -168,21 +162,15 @@ function UploadForm({
 
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* This is the main container that switches states */}
                         <div
                             className={cn(
-                                // --- THIS IS THE FIX ---
-                                'group relative w-full h-64 rounded-lg border border-gray-200 bg-white overflow-hidden transition-all', // <-- Added 'group'
+                                'group relative w-full h-64 rounded-lg border border-gray-200 bg-white overflow-hidden transition-all',
                                 isDragging && !isLoading && 'bg-gray-50'
                             )}
                         >
-                            {/* State 1: Loading (Overlay on top of preview) */}
                             {isLoading && (
                                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center space-y-3 bg-white/80 backdrop-blur-sm  overflow-hidden">
-                                    {/* --- Shimmer Element --- */}
                                     <div className="animate-shimmer absolute top-0 left-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-75"></div>
-
-                                    {/* Content (needs to be above the shimmer) */}
                                     <div className="relative z-10 flex flex-col items-center justify-center space-y-3">
                                         <Sparkles className="h-10 w-10 text-gray-800 animate-pulse" />
                                         <p className="font-medium text-lg text-gray-700">
@@ -192,7 +180,6 @@ function UploadForm({
                                 </div>
                             )}
 
-                            {/* State 2: Image Preview */}
                             {previewUrl ? (
                                 <>
                                     <img
@@ -200,7 +187,7 @@ function UploadForm({
                                         alt="Selected preview"
                                         className={cn(
                                             'w-full h-full object-contain',
-                                            isLoading && 'blur-[2px] opacity-70' // Subtly blur image behind loader
+                                            isLoading && 'blur-[2px] opacity-70'
                                         )}
                                     />
                                     {!isLoading && (
@@ -208,7 +195,7 @@ function UploadForm({
                                             type="button"
                                             variant="destructive"
                                             size="icon"
-                                            className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity z-10" // Added z-10
+                                            className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                                             onClick={removeFile}
                                             disabled={isLoading}
                                         >
@@ -217,7 +204,6 @@ function UploadForm({
                                     )}
                                 </>
                             ) : (
-                                /* State 3: Empty Dropzone */
                                 <div
                                     className="flex flex-col items-center justify-center h-full text-center cursor-pointer p-8"
                                     onClick={() => fileInputRef.current?.click()}
@@ -254,7 +240,7 @@ function UploadForm({
     );
 }
 
-// --- NEW: Layout Picker Dialog (Unchanged) ---
+// --- Layout Picker Dialog ---
 function LayoutPicker({
     layouts,
     onSelectLayout,
@@ -291,7 +277,8 @@ function LayoutPicker({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-4 max-h-60 overflow-y-auto">
-                    {layouts.map(({ id, layout }) => (                        <Button
+                    {layouts.map(({ id, layout }) => (
+                        <Button
                             key={id}
                             variant={isNoMatch && id === 'g-26c' ? 'default' : 'outline'}
                             className="w-full justify-start h-auto"
@@ -301,30 +288,27 @@ function LayoutPicker({
                                 <p className="font-semibold">
                                     {layout.name}
                                     {isNoMatch && id === 'g-26c' && ' (Recommended)'}
-                                </p>                                <p className="text-xs text-gray-500">
+                                </p>
+                                <p className="text-xs text-gray-500">
                                     {(() => {
-                                        // Calculate shelf count: multi-door or single-door
                                         let shelfCount = 0;
                                         let doorCount = 1;
                                         let widthInfo = 'Unknown';
-                                        
+
                                         if (layout.doors && layout.doors.length > 0) {
-                                            // Multi-door: sum shelves across all doors
                                             doorCount = layout.doors.length;
                                             shelfCount = layout.doors.reduce((sum, door) => {
                                                 return sum + (door.layout ? Object.keys(door.layout).length : 0);
                                             }, 0);
-                                            // Calculate total width from all doors
                                             const totalWidth = layout.doors.reduce((sum, door) => {
                                                 return sum + (door.width || 0);
                                             }, 0);
                                             widthInfo = totalWidth > 0 ? `${totalWidth}px` : (layout.width ? `${layout.width}px` : 'Unknown');
                                         } else if (layout.layout) {
-                                            // Single-door: count rows in layout
                                             shelfCount = Object.keys(layout.layout).length;
                                             widthInfo = layout.width ? `${layout.width}px` : 'Unknown';
                                         }
-                                        
+
                                         const doorInfo = doorCount > 1 ? ` | ${doorCount} Doors` : '';
                                         return `${shelfCount} Shelves${doorInfo} | ${widthInfo} wide`;
                                     })()}
@@ -339,26 +323,23 @@ function LayoutPicker({
 }
 
 // --- UPDATED: Main Page Component ---
-export default function UploadPlanogramPage() {    // const [isLoading, setIsLoading] = useState(false); // <-- REPLACED
-    const [uploadStep, setUploadStep] = useState<UploadStep>('idle'); // <-- NEW STATE
-    const [error, setError] = useState<string | null>(null);
-    const [importedLayout, setImportedLayout] = useState<Refrigerator | null>(
-        null
-    );
-    const [importedMultiDoorLayout, setImportedMultiDoorLayout] = useState<MultiDoorRefrigerator | null>(
-        null
-    );
-    const [detectedLayoutId, setDetectedLayoutId] = useState<string | null>(null); // <-- NEW: Store the detected layout ID
-    const [isMultiDoor, setIsMultiDoor] = useState<boolean>(false); // <-- NEW: Track if multi-door
+export default function UploadPlanogramPage() {
+    const router = useRouter(); // <--- ADDED: Router hook
+    const { actions } = usePlanogramStore(); // <--- ADDED: Store hook
 
-    // --- NEW STATE for layout picking ---
+    const [uploadStep, setUploadStep] = useState<UploadStep>('idle');
+    const [error, setError] = useState<string | null>(null);
+
+    // State for layout picking
     const [aiData, setAiData] = useState<AIBackendData | null>(null);
     const [matchingLayouts, setMatchingLayouts] = useState<
         Array<{ id: string; layout: LayoutData }>
     >([]);
     const [showLayoutPicker, setShowLayoutPicker] = useState(false);
     const [detectedShelfCount, setDetectedShelfCount] = useState<number>(0);
-    const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);    /**
+    const [isNoMatchScenario, setIsNoMatchScenario] = useState(false);
+
+    /**
      * Finishes the conversion process once a layout is chosen.
      */
     const processConversion = (
@@ -368,45 +349,43 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
     ) => {
         toast.info(`Building planogram with ${chosenLayout.name}...`);
         try {
-            // --- Step 3: Detect if multi-door and convert accordingly ---
             const isMultiDoorData = isMultiDoorAIData(data);
-            
+            let layoutToStore;
+
             if (isMultiDoorData) {
                 console.log('[Upload] Multi-door AI data detected, using multi-door converter');
-                
-                // Ensure layout has door configurations
+
                 if (!chosenLayout.doors || chosenLayout.doors.length === 0) {
                     throw new Error('Selected layout does not support multi-door configuration');
                 }
-                
-                const convertedMultiDoorLayout = convertMultiDoorBackendToFrontend(
+
+                layoutToStore = convertMultiDoorBackendToFrontend(
                     data,
                     availableSkus,
                     chosenLayout
                 );
-                
-                // Store as MultiDoorRefrigerator - the store will handle it via normalizeToMultiDoor
-                setImportedMultiDoorLayout(convertedMultiDoorLayout);
-                setImportedLayout(null);
-                setIsMultiDoor(true);
             } else {
                 console.log('[Upload] Single-door AI data detected, using single-door converter');
-                
-                const convertedLayout = convertBackendToFrontend(
+
+                layoutToStore = convertBackendToFrontend(
                     data,
                     availableSkus,
                     chosenLayout
                 );
-                
-                // Store as Refrigerator - the store will wrap it as { 'door-1': ... }
-                setImportedLayout(convertedLayout);
-                setImportedMultiDoorLayout(null);
-                setIsMultiDoor(false);
             }
 
-            // --- Step 4: Set the state with our new layout AND the detected layout ID ---
-            setDetectedLayoutId(layoutId); // <-- Store the layout ID
+            // --- CRITICAL UPDATE: SAVE TO STORE AND REDIRECT ---
+            // Instead of setting local state to render Editor, we save to global store
+            actions.setPendingImport({
+                layoutId: layoutId,
+                layout: layoutToStore,
+                layoutData: chosenLayout
+            });
+
             setUploadStep('idle');
+            toast.success("Planogram generated! Redirecting...");
+            router.push('/planogram'); // <--- Navigate to Planogram Page
+
         } catch (err: any) {
             console.error(err);
             setError('Failed to convert AI data. ' + err.message);
@@ -415,10 +394,8 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
         }
     };
 
-    // --- THIS IS THE UPDATED UPLOAD HANDLER ---
     const handleUpload = async (file: File) => {
-        // setIsLoading(true); // <-- REPLACED
-        setUploadStep('uploading'); // <-- NEW
+        setUploadStep('uploading');
         setError(null);
         setAiData(null);
         setMatchingLayouts([]);
@@ -470,7 +447,7 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
             }
 
             const imageUrl = uploadResult.urls[0];
-            setUploadStep('processing'); // <-- NEW: Move to next step
+            setUploadStep('processing');
             toast.success('Image uploaded! Sending to AI...');
 
             // --- Step 2: Call AI Backend with image URL ---
@@ -499,49 +476,41 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
 
             const fetchedAiData = await aiResponse.json();
 
-            setUploadStep('complete'); // <-- NEW: Move to final step
-            toast.info('AI processing complete! Matching layout...');            // --- ADDED CONSOLE LOG ---
+            setUploadStep('complete');
+            toast.info('AI processing complete! Matching layout...');
             console.log('--- AI Data Received ---', fetchedAiData);
-            setAiData(fetchedAiData); // Store AI data in state
-            
-            // --- NEW LAYOUT MATCHING LOGIC (Multi-door aware) ---
+            setAiData(fetchedAiData);
+
+            // --- Step 3: Find Matching Layouts ---
             const isMultiDoorData = isMultiDoorAIData(fetchedAiData);
-            
             let totalShelfCount = 0;
-            
+
             if (isMultiDoorData) {
-                // Calculate total shelf count across all doors
                 const door1Count = fetchedAiData.Cooler?.['Door-1']?.Sections?.length || 0;
                 const door2Count = fetchedAiData.Cooler?.['Door-2']?.Sections?.length || 0;
                 totalShelfCount = door1Count + door2Count;
-                
-                console.log(`[Layout Match] Multi-door detected: Door-1 has ${door1Count} shelves, Door-2 has ${door2Count} shelves. Total: ${totalShelfCount}`);
+                console.log(`[Layout Match] Multi-door detected: Total: ${totalShelfCount}`);
             } else {
-                // Single door - count shelves in Door-1
                 totalShelfCount = fetchedAiData.Cooler?.['Door-1']?.Sections?.length || 0;
                 console.log(`[Layout Match] Single-door detected: ${totalShelfCount} shelves`);
             }
-            
+
             if (totalShelfCount === 0) {
                 throw new Error('AI did not detect any shelves in the image.');
             }
 
             setDetectedShelfCount(totalShelfCount);
-            
-            // Find matching layouts WITH their IDs
+
             const matches: Array<{ id: string; layout: LayoutData }> = Object.entries(
                 availableLayoutsData
             )
                 .filter(([_, layout]) => {
-                    // Check if layout supports multi-door (has doors array)
                     if (layout.doors && layout.doors.length > 0) {
-                        // Multi-door layout: sum up shelves across all doors
                         const layoutTotalShelves = layout.doors.reduce((sum, door) => {
                             return sum + (door.layout ? Object.keys(door.layout).length : 0);
                         }, 0);
                         return layoutTotalShelves === totalShelfCount;
                     } else if (layout.layout) {
-                        // Legacy single-door layout
                         return Object.keys(layout.layout).length === totalShelfCount;
                     }
                     return false;
@@ -549,103 +518,46 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
                 .map(([id, layout]) => ({ id, layout }));
 
             console.log(
-                `[Layout Match] AI has ${totalShelfCount} total shelves (${isMultiDoorData ? 'multi-door' : 'single-door'}). Found ${matches.length} matching layouts.`
-            );            if (matches.length === 0) {
-                // NO MATCH: Show all layouts and let user choose
+                `[Layout Match] AI has ${totalShelfCount} total shelves. Found ${matches.length} matching layouts.`
+            );
+
+            if (matches.length === 0) {
                 const allLayouts = Object.entries(availableLayoutsData).map(
                     ([id, layout]) => ({ id, layout })
                 );
-
                 toast.warning(`No cooler configuration matches ${totalShelfCount} shelves.`, {
                     description: 'Please choose a cooler model to continue.',
                 });
-
                 setMatchingLayouts(allLayouts);
                 setIsNoMatchScenario(true);
                 setShowLayoutPicker(true);
-                // setIsLoading(false); // <-- REPLACED
-                setUploadStep('idle'); // <-- NEW
+                setUploadStep('idle');
                 return;
             }
 
             if (matches.length === 1) {
-                // Only one match, proceed automatically
                 processConversion(fetchedAiData, matches[0].layout, matches[0].id);
             } else {
-                // Multiple matches, ask the user - store matches with IDs
                 setMatchingLayouts(matches);
                 setIsNoMatchScenario(false);
                 setShowLayoutPicker(true);
-                // setIsLoading(false); // <-- REPLACED
-                setUploadStep('idle'); // <-- NEW: Stop loading while user chooses
+                setUploadStep('idle');
             }
         } catch (err: any) {
             console.error(err);
             setError(
                 err.message || 'Failed to generate planogram. Please try again.'
             );
-            // setIsLoading(false); // <-- REPLACED
-            setUploadStep('idle'); // <-- NEW
+            setUploadStep('idle');
             toast.error(err.message || 'Failed to generate planogram.');
         }
-    };    // --- Conditional Rendering ---
-    // Show editor *after* layout is successfully imported
-    if (importedLayout || importedMultiDoorLayout) {
-        // Get default layout - try single-door first, then first door of multi-door layout
-        let defaultLayout = availableLayoutsData['g-26c']?.layout;
-        
-        // If g-26c doesn't have a single-door layout, use its first door
-        if (!defaultLayout && availableLayoutsData['g-26c']?.doors?.[0]?.layout) {
-            defaultLayout = availableLayoutsData['g-26c'].doors[0].layout;
-        }
-        
-        // If still no default, try to find any available single-door layout
-        if (!defaultLayout) {
-            for (const layoutId in availableLayoutsData) {
-                const layout = availableLayoutsData[layoutId];
-                if (layout.layout) {
-                    defaultLayout = layout.layout;
-                    console.log(`[Upload] Using fallback default layout: ${layoutId}`);
-                    break;
-                }
-                if (layout.doors?.[0]?.layout) {
-                    defaultLayout = layout.doors[0].layout;
-                    console.log(`[Upload] Using fallback default layout (first door): ${layoutId}`);
-                    break;
-                }
-            }
-        }
-        
-        if (!defaultLayout) {
-            toast.error('No valid default layout found in available layouts');
-            return null;
-        }
-        
-        // Pass the appropriate layout format - the store will normalize it
-        const layoutToImport = isMultiDoor ? importedMultiDoorLayout : importedLayout;
-        
-        return (
-            <main className="w-full h-full">
-                <div>
-                    <PlanogramEditor
-                        initialSkus={availableSkus}
-                        initialLayout={defaultLayout} // Base layout (will be overridden)
-                        initialLayouts={availableLayoutsData}
-                        importedLayout={layoutToImport} // Pass either single-door or multi-door - store normalizes it
-                        importedLayoutId={detectedLayoutId} // Pass the detected layout ID
-                    />
-                </div>
-            </main>
-        );
-    }
+    };
 
     // Show layout picker dialog if needed
     if (showLayoutPicker && aiData) {
         return (
             <>
-                {/* Show upload form greyed out in background */}
                 <UploadForm onSubmit={handleUpload} uploadStep={uploadStep} />
-                {/* Show picker on top */}
                 <LayoutPicker
                     layouts={matchingLayouts}
                     isNoMatch={isNoMatchScenario}
@@ -658,8 +570,7 @@ export default function UploadPlanogramPage() {    // const [isLoading, setIsLoa
                     }}
                     onSelectLayout={(layout, layoutId) => {
                         setShowLayoutPicker(false);
-                        // setIsLoading(true); // <-- REPLACED
-                        setUploadStep('complete'); // <-- NEW: Show final loading step
+                        setUploadStep('complete');
                         processConversion(aiData, layout, layoutId);
                     }}
                 />

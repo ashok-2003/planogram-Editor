@@ -375,7 +375,8 @@ export function PlanogramEditor({
   initialLayouts,
   importedLayout = null,
   importedLayoutId = null // <-- NEW: Accept the detected layout ID
-}: PlanogramEditorProps) {  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
+}: PlanogramEditorProps) {
+  const { refrigerator, actions, findStackLocation } = usePlanogramStore();
   const refrigerators = usePlanogramStore((state) => state.refrigerators);
   const isMultiDoor = usePlanogramStore((state) => state.isMultiDoor);
   const history = usePlanogramStore((state) => state.history);
@@ -384,6 +385,9 @@ export function PlanogramEditor({
   const hasPendingDraft = usePlanogramStore((state) => state.hasPendingDraft);
   const syncStatus = usePlanogramStore((state) => state.syncStatus);
   const lastSynced = usePlanogramStore((state) => state.lastSynced);
+
+  // --- NEW: Get pending data from store ---
+  const pendingImportedData = usePlanogramStore((state) => state.pendingImportedData);
 
   const [activeItem, setActiveItem] = useState<Item | Sku | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator>(null);
@@ -403,18 +407,35 @@ export function PlanogramEditor({
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  // NEW: Single initialization useEffect (Phase 9)
+
+  // --- UPDATED: Initialization useEffect ---
   useEffect(() => {
-    // 3. THIS IS THE MODIFIED LOGIC - Now passing layoutData for multi-door support
-    if (importedLayout) {
-      // If an imported layout is provided, use it to initialize (force = true to bypass draft)
-      // Pass the layoutData so store knows if it's multi-door
+    // Priority 1: Check for Pending Import from Store (Data coming from Upload Page)
+    if (pendingImportedData) {
+      console.log("🚀 Found pending imported data! Initializing...");
+
+      // Initialize the store with this data
+      actions.initializeLayout(
+        pendingImportedData.layoutId,
+        pendingImportedData.layout,
+        true, // forceInit = true (skip draft check)
+        pendingImportedData.layoutData
+      );
+
+      // Update local state for the dropdown
+      setSelectedLayoutId(pendingImportedData.layoutId);
+      toast.success('Successfully imported planogram from image!');
+
+      // CLEAR the pending data so a refresh doesn't re-trigger it
+      actions.setPendingImport(null);
+
+    } else if (importedLayout) {
+      // Priority 2: Legacy direct props
       const layoutData = initialLayouts[selectedLayoutId];
       actions.initializeLayout(selectedLayoutId, importedLayout, true, layoutData);
       toast.success('Successfully imported planogram from image!');
     } else {
-      // Otherwise, use the default initialization (which checks localStorage)
-      // Pass the layoutData so store knows if it's multi-door
+      // Priority 3: Default / Local Storage
       const layoutData = initialLayouts[selectedLayoutId];
       actions.initializeLayout(selectedLayoutId, initialLayout, false, layoutData);
     }
@@ -522,10 +543,10 @@ export function PlanogramEditor({
       draggedItem = activeData.items[0];
       if (draggedItem) {
         draggedEntityHeight = activeData.items.reduce((sum: number, item: Item) => sum + item.height, 0);
-        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable;        setActiveItem(draggedItem);
+        isSingleItemStackable = activeData.items.length === 1 && draggedItem.constraints.stackable; setActiveItem(draggedItem);
       }
     }
-    
+
     if (draggedItem) {
       // In multi-door setup, validate ALL doors and merge results
       // In single-door setup, validate only that door
@@ -534,7 +555,7 @@ export function PlanogramEditor({
         const allDoorIds = Object.keys(refrigerators);
         const mergedValidRowIds = new Set<string>();
         const mergedValidStackTargetIds = new Set<string>();
-        
+
         allDoorIds.forEach(doorId => {
           const doorValidation = runValidation({
             draggedItem,
@@ -546,21 +567,21 @@ export function PlanogramEditor({
             findStackLocation,
             isRulesEnabled,
           });
-          
+
           // Merge results from this door
           if (doorValidation) {
             doorValidation.validRowIds.forEach(id => mergedValidRowIds.add(id));
             doorValidation.validStackTargetIds.forEach(id => mergedValidStackTargetIds.add(id));
           }
         });
-        
+
         const validationResult = {
           validRowIds: mergedValidRowIds,
           validStackTargetIds: mergedValidStackTargetIds
         };
-        
+
         setDragValidation(validationResult);
-        
+
       } else {
         // Single-door: Validate only the single door
         const doorId = Object.keys(refrigerators)[0] || 'door-1';
@@ -574,7 +595,7 @@ export function PlanogramEditor({
           findStackLocation,
           isRulesEnabled,
         });
-        
+
         setDragValidation(validationResult);
       }
     }
@@ -613,10 +634,10 @@ export function PlanogramEditor({
       const activeId = active.id as string;
       const overId = over.id as string;
       const overType = over.data.current?.type;
-      const activeType = active.data.current?.type;      if (activeType === 'sku' || interactionMode === 'reorder') {
+      const activeType = active.data.current?.type; if (activeType === 'sku' || interactionMode === 'reorder') {
         let overRowId: string | undefined;
         let overDoorId: string | undefined;
-        let stackIndex: number | undefined;        if (overType === 'row') {
+        let stackIndex: number | undefined; if (overType === 'row') {
           // Extract doorId and rowId from composite ID (e.g., "door-1:row-1")
           overDoorId = over.data.current?.doorId;
           overRowId = over.data.current?.rowId || overId;
@@ -653,19 +674,19 @@ export function PlanogramEditor({
   }, [interactionMode, findStackLocation, dragValidation]);
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    const activeType = active.data.current?.type;    if (activeType === 'sku') {
+    const activeType = active.data.current?.type; if (activeType === 'sku') {
       if (dropIndicator?.type === 'reorder' && dropIndicator.targetRowId && active.data.current) {
         // Build door-qualified row ID to match validation format
-        const qualifiedRowId = dropIndicator.targetDoorId 
+        const qualifiedRowId = dropIndicator.targetDoorId
           ? `${dropIndicator.targetDoorId}:${dropIndicator.targetRowId}`
           : dropIndicator.targetRowId;
-        
+
         if (dragValidation && dragValidation.validRowIds.has(qualifiedRowId)) {
           actions.addItemFromSku(active.data.current.sku, dropIndicator.targetRowId, dropIndicator.index, dropIndicator.targetDoorId);
           setInvalidModeAttempts(0);
         }
       }
-    }else if (interactionMode === 'stack') {
+    } else if (interactionMode === 'stack') {
       if (dropIndicator?.type === 'stack') {
         actions.stackItem(active.id as string, dropIndicator.targetId);
         setInvalidModeAttempts(0);
